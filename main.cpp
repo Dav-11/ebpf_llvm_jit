@@ -1,38 +1,46 @@
-#include <argparse/argparse.hpp>
-#include <bpf/libbpf.h>
+#include <filesystem>
+
+#include "spdlog/spdlog.h"
+#include "spdlog/cfg/env.h"
+#include "argparse/argparse.hpp"
+
 
 static int build_ebpf_program(const std::string &ebpf_elf,
                               const std::filesystem::path &output)
 {
-    bpf_object *obj = bpf_object__open(ebpf_elf.c_str());
-    if (!obj) {
-        SPDLOG_CRITICAL("Unable to open BPF elf: {}", errno);
-        return 1;
-    }
-    std::unique_ptr<bpf_object, decltype(&bpf_object__close)> elf(
-            obj, bpf_object__close);
-    bpf_program *prog;
-    bpf_object__for_each_program(prog, elf.get())
-    {
-        auto name = bpf_program__name(prog);
-        SPDLOG_INFO("Processing program {}", name);
-        bpftime::vm::llvm::bpftime_llvm_jit_vm vm;
+//    bpf_object *obj = bpf_object__open(ebpf_elf.c_str());
+//    if (!obj) {
+//        SPDLOG_CRITICAL("Unable to open BPF elf: {}", errno);
+//        return 1;
+//    }
+//    std::unique_ptr<bpf_object, decltype(&bpf_object__close)> elf(
+//            obj, bpf_object__close);
+//    bpf_program *prog;
+//    bpf_object__for_each_program(prog, elf.get())
+//    {
+//        auto name = bpf_program__name(prog);
+//        SPDLOG_INFO("Processing program {}", name);
+//        bpftime::vm::llvm::bpftime_llvm_jit_vm vm;
 
-        if (vm.load_code((const void *)bpf_program__insns(prog),
-                         (uint32_t)bpf_program__insn_cnt(prog) * 8) <
-            0) {
-            SPDLOG_ERROR(
-                    "Unable to load instruction of program {}: ",
-                    name, vm.get_error_message());
-            return 1;
-        }
-        llvm_bpf_jit_context ctx(&vm);
-        auto result = ctx.do_aot_compile();
-        auto out_path = output / (std::string(name) + ".o");
-        std::ofstream ofs(out_path, std::ios::binary);
-        ofs.write((const char *)result.data(), result.size());
-        SPDLOG_INFO("Program {} written to {}", name, out_path.c_str());
-    }
+//        if (vm.load_code((const void *)bpf_program__insns(prog),
+//                         (uint32_t)bpf_program__insn_cnt(prog) * 8) <
+//            0) {
+//            SPDLOG_ERROR(
+//                    "Unable to load instruction of program {}: ",
+//                    name, vm.get_error_message());
+//            return 1;
+//        }
+//        llvm_bpf_jit_context ctx(&vm);
+//        auto result = ctx.do_aot_compile();
+//        auto out_path = output / (std::string(name) + ".o");
+//        std::ofstream ofs(out_path, std::ios::binary);
+//        ofs.write((const char *)result.data(), result.size());
+//        SPDLOG_INFO("Program {} written to {}", name, out_path.c_str());
+//    }
+
+    int test = 9;
+    SPDLOG_CRITICAL("Unable to open BPF elf: {}", test);
+
     return 0;
 }
 
@@ -74,15 +82,6 @@ int main(int argc, const char **argv)
         return build_ebpf_program(
                 build_command.get<std::string>("EBPF_ELF"),
                 build_command.get<std::string>("output"));
-    } else if (program.is_subcommand_used(run_command)) {
-        if (run_command.is_used("MEMORY")) {
-            return run_ebpf_program(
-                    run_command.get<std::string>("PATH"),
-                    run_command.get<std::string>("MEMORY"));
-        } else {
-            return run_ebpf_program(
-                    run_command.get<std::string>("PATH"), {});
-        }
     }
     return 0;
 }

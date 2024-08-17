@@ -1,0 +1,21 @@
+{
+  "name" : "ebpf-llvm-jit",
+  "version-string" : "1.0.0",
+  "builtin-baseline" : "2f210a9c13fcf2b0c36b1f2187366feec37e3390",
+  "dependencies" : [ {
+    "name" : "argparse",
+    "version>=" : "3.1"
+  }, {
+    "name" : "fmt",
+    "version>=" : "11.0.2"
+  }, {
+    "name" : "spdlog",
+    "version>=" : "1.14.1"
+  }, {
+    "name" : "vcpkg-cmake-config",
+    "version>=" : "2024-05-23"
+  }, {
+    "name" : "vcpkg-cmake",
+    "version>=" : "2024-04-23"
+  } ]
+}
