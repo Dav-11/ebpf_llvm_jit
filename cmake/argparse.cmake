@@ -6,7 +6,7 @@ include(FetchContent)
 FetchContent_Declare(
         argparse
         GIT_REPOSITORY https://github.com/p-ranav/argparse.git
-        GIT_TAG v2.9  # Replace with the desired version tag
+        GIT_TAG v3.0  # Replace with the desired version tag
         GIT_SHALLOW TRUE
 )
 
