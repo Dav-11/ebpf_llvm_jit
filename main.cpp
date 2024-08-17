@@ -6,6 +6,7 @@
 #include "spdlog/cfg/env.h"
 #include "argparse/argparse.hpp"
 #include "src/jit/bpftime_llvm_jit_vm.h"
+#include "src/jit/llvm_bpf_jit_context.h"
 
 
 static int build_ebpf_program(const std::string &ebpf_elf,
@@ -37,7 +38,7 @@ static int build_ebpf_program(const std::string &ebpf_elf,
             return 1;
         }
 
-        llvm_bpf_jit_context ctx(&vm);
+        ebpf_llvm_jit::jit::llvm_bpf_jit_context ctx(&vm);
 
         // write result to file
         auto result = ctx.do_aot_compile();

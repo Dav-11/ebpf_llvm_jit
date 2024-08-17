@@ -6,6 +6,7 @@
 #define EBPF_LLVM_JIT_LLVM_BPF_JIT_CONTEXT_H
 
 #include <optional>
+#include <memory>
 
 #include <llvm/ExecutionEngine/Orc/Core.h>
 #include <llvm/Support/InitLLVM.h>
@@ -13,6 +14,7 @@
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/MCJIT.h>
+#include "bpftime_llvm_jit_vm.h"
 
 #define IS_ALIGNED(x, a) (((uintptr_t)(x) & ((a)-1)) == 0)
 
@@ -37,10 +39,10 @@ namespace ebpf_llvm_jit::jit {
 
     public:
         void do_jit_compile();
-        llvm_bpf_jit_context(class bpftime::vm::llvm::bpftime_llvm_jit_vm *vm);
+        llvm_bpf_jit_context(class bpftime_llvm_jit_vm *vm);
         virtual ~llvm_bpf_jit_context();
-        bpftime::vm::compat::precompiled_ebpf_function compile();
-        bpftime::vm::compat::precompiled_ebpf_function get_entry_address();
+        precompiled_ebpf_function compile();
+        precompiled_ebpf_function get_entry_address();
         std::vector<uint8_t> do_aot_compile(bool print_ir = false);
         void load_aot_object(const std::vector<uint8_t> &buf);
     };

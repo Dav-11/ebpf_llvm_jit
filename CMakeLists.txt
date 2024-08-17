@@ -6,11 +6,29 @@ project(ebpf_llvm_jit)
 
 include(FetchContent)
 
+#######################################
+ # INCLUDE OTHER .CMAKE
+#######################################
+
 include(cmake/libbpf.cmake)
 include(cmake/llvm-15.cmake)
+include(cmake/argparse.cmake)
+include(cmake/spdlog.cmake)
+
+
+#######################################
+ # INCLUDE HEADERS
+#######################################
 
 include_directories(${LIBBPF_INCLUDE_DIRS})
 include_directories(${LLVM_INCLUDE_DIRS})
+include_directories(${ARGPARSE_INCLUDE_DIRS})
+include_directories(${SPDLOG_INCLUDE_DIRS})
+
+
+#######################################
+ # ACTUAL BUILD
+#######################################
 
 add_executable(ebpf_llvm_jit
         main.cpp
@@ -21,15 +39,11 @@ add_executable(ebpf_llvm_jit
         src/jit/llvm_bpf_jit_context.h)
 
 #######################################
- # EXT LIBRARIES
+ # EXT LIBRARIES LINKING
 #######################################
 
-find_package(spdlog CONFIG REQUIRED)
-find_package(argparse CONFIG REQUIRED)
-
-target_link_libraries(ebpf_llvm_jit PRIVATE spdlog::spdlog)
-target_link_libraries(ebpf_llvm_jit PRIVATE argparse::argparse)
+target_link_libraries(ebpf_llvm_jit PRIVATE ${SPDLOG_LIBRARIES})
+target_link_libraries(ebpf_llvm_jit PRIVATE ${ARGPARSE_LIBRARIES})
 target_link_libraries(ebpf_llvm_jit PRIVATE ${LIBBPF_LIBRARIES})
 target_link_libraries(ebpf_llvm_jit PRIVATE ${LLVM_LIBRARIES})
 
-add_dependencies(spdlog::spdlog argparse libbpf)
