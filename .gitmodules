@@ -1,6 +1,3 @@
 [submodule "dependencies/libbpf"]
 	path = dependencies/libbpf
-	url = https://github.com/libbpf/libbpf
-# [submodule "dependencies/llvm-project"]
-# 	path = dependencies/llvm-project
-# 	url = https://github.com/llvm/llvm-project
+	url = https://github.com/libbpf/libbpf.git
