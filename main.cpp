@@ -1,15 +1,11 @@
 #include <filesystem>
 #include <cstdint>
 #include <iostream>
-#include <libelf.h>
 #include <string>
 #include <unistd.h>
 #include <fstream>
 
 #include <bpf/libbpf.h>
-
-#include <llvm/ExecutionEngine/Orc/LLJIT.h>
-#include <llvm/Support/MemoryBuffer.h>
 
 #include "spdlog/spdlog.h"
 #include "spdlog/cfg/env.h"
@@ -122,6 +118,6 @@ int main(int argc, const char **argv)
 //            return run_ebpf_program(
 //                    run_command.get<std::string>("PATH"), {});
 //        }
-    }
+//    }
     return 0;
 }

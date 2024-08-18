@@ -8,14 +8,13 @@
 #include "../ebpf_inst.h"
 #include "external_function.h"
 #include "llvm_bpf_jit_context.h"
+#include "../utils/bo.h"
 
 #ifndef MAX_EXT_FUNCS
 #define MAX_EXT_FUNCS 8192
 #endif
 
 namespace ebpf_llvm_jit::jit {
-
-    using precompiled_ebpf_function = uint64_t (*)(void *mem, size_t mem_len);
 
     class bpftime_llvm_jit_vm {
     public:
@@ -28,9 +27,9 @@ namespace ebpf_llvm_jit::jit {
         void unload_code() ;
         int exec(void *mem, size_t mem_len, uint64_t &bpf_return_value);
         std::vector<uint8_t> do_aot_compile(bool print_ir = false);
-        std::optional<precompiled_ebpf_function>
+        std::optional<utils::precompiled_ebpf_function>
         load_aot_object(const std::vector<uint8_t> &object);
-        std::optional<precompiled_ebpf_function> compile();
+        std::optional<utils::precompiled_ebpf_function> compile();
         void set_lddw_helpers(uint64_t (*map_by_fd)(uint32_t),
                               uint64_t (*map_by_idx)(uint32_t),
                               uint64_t (*map_val)(uint64_t),
@@ -55,7 +54,7 @@ namespace ebpf_llvm_jit::jit {
         friend class llvm_bpf_jit_context;
 
         std::string error_msg;
-        std::optional<precompiled_ebpf_function> jitted_function;
+        std::optional<utils::precompiled_ebpf_function> jitted_function;
     };
 
 }

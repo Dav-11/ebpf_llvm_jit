@@ -2,6 +2,8 @@
 
 include(FetchContent)
 
+message(STATUS "Downloading and building spdlog...")
+
 # Declare the spdlog content to be fetched
 FetchContent_Declare(
         spdlog
@@ -16,3 +18,5 @@ FetchContent_MakeAvailable(spdlog)
 # Set spdlog include directories and libraries
 set(SPDLOG_INCLUDE_DIRS ${spdlog_SOURCE_DIR}/include)
 set(SPDLOG_LIBRARIES spdlog)
+
+message(STATUS "DONE")

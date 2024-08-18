@@ -1,23 +1,30 @@
 # libbpf.cmake
 
-include(FetchContent)
+include(ExternalProject)
+
+message(STATUS "Downloading and building libbpf...")
+
+set(LIBBPF_DIR ${CMAKE_CURRENT_LIST_DIR}/../third_party/libbpf/)
 
 # Declare the libbpf content to be fetched
-FetchContent_Declare(
+ExternalProject_Add(
         libbpf
-        GIT_REPOSITORY https://github.com/libbpf/libbpf.git
-        GIT_TAG v1.4.5  # Replace with the desired version tag
-        GIT_SHALLOW TRUE
+        GIT_REPOSITORY "https://github.com/libbpf/libbpf.git"
+        GIT_TAG "v1.4.5"
+        GIT_SUBMODULES_RECURSE TRUE
+
+        SOURCE_DIR ${LIBBPF_DIR} # Source directory into which downloaded contents will be unpacked/ cloned
+
+        CONFIGURE_COMMAND "mkdir" "-p" "${CMAKE_CURRENT_BINARY_DIR}/libbpf/libbpf"
+        BUILD_COMMAND "cd" "src/" "&&" "INCLUDEDIR=" "LIBDIR=" "UAPIDIR=" "OBJDIR=${CMAKE_CURRENT_BINARY_DIR}/libbpf/libbpf" "DESTDIR=${CMAKE_CURRENT_BINARY_DIR}/libbpf" "make" "CFLAGS=-g -O2 -Werror -Wall -std=gnu89 -fPIC -fvisibility=hidden -DSHARED -DCUSTOM_DEFINE=1" "-j" "install"
+        BUILD_IN_SOURCE TRUE
+        BUILD_ALWAYS TRUE
+        INSTALL_COMMAND ""
+        BUILD_BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/libbpf/libbpf.a
 )
 
-# Set libbpf build options
-set(LIBBPF_BUILD_STATIC_ONLY ON CACHE BOOL "Build only the static library")
-set(LIBBPF_ENABLE_SHARED OFF CACHE BOOL "Disable shared library")
-set(LIBBPF_FORCE_STATIC_LIB ON CACHE BOOL "Force using static libbpf")
-
-# Download and build libbpf
-FetchContent_MakeAvailable(libbpf)
-
 # Provide libbpf variables to the main CMakeLists.txt
-set(LIBBPF_INCLUDE_DIRS ${libbpf_SOURCE_DIR}/src)
-set(LIBBPF_LIBRARIES ${libbpf_BINARY_DIR}/src/libbpf.a)
+set(LIBBPF_INCLUDE_DIRS ${CMAKE_CURRENT_BINARY_DIR}/libbpf/)
+set(LIBBPF_LIBRARIES ${CMAKE_CURRENT_BINARY_DIR}/libbpf/libbpf.a)
+
+message(STATUS "DONE")

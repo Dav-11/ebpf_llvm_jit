@@ -92,7 +92,7 @@ std::vector<uint8_t> bpftime_llvm_jit_vm::do_aot_compile(bool print_ir)
     return this->jit_ctx->do_aot_compile(print_ir);
 }
 
-std::optional<precompiled_ebpf_function>
+std::optional<ebpf_llvm_jit::utils::precompiled_ebpf_function>
 bpftime_llvm_jit_vm::compile()
 {
     auto func = jit_ctx->compile();
@@ -100,7 +100,7 @@ bpftime_llvm_jit_vm::compile()
     return func;
 }
 
-std::optional<precompiled_ebpf_function>
+std::optional<ebpf_llvm_jit::utils::precompiled_ebpf_function>
 bpftime_llvm_jit_vm::load_aot_object(const std::vector<uint8_t> &object)
 {
     if (jitted_function) {

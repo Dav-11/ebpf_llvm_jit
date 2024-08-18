@@ -15,10 +15,17 @@
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/MCJIT.h>
 #include "bpftime_llvm_jit_vm.h"
+#include "../utils/bo.h"
 
 #define IS_ALIGNED(x, a) (((uintptr_t)(x) & ((a)-1)) == 0)
 
 namespace ebpf_llvm_jit::jit {
+
+    const static char *LDDW_HELPER_MAP_BY_FD = "__lddw_helper_map_by_fd";
+    const static char *LDDW_HELPER_MAP_BY_IDX = "__lddw_helper_map_by_idx";
+    const static char *LDDW_HELPER_MAP_VAL = "__lddw_helper_map_val";
+    const static char *LDDW_HELPER_VAR_ADDR = "__lddw_helper_var_addr";
+    const static char *LDDW_HELPER_CODE_ADDR = "__lddw_helper_code_addr";
 
     class llvm_bpf_jit_context {
         class bpftime_llvm_jit_vm *vm;
@@ -41,8 +48,8 @@ namespace ebpf_llvm_jit::jit {
         void do_jit_compile();
         llvm_bpf_jit_context(class bpftime_llvm_jit_vm *vm);
         virtual ~llvm_bpf_jit_context();
-        precompiled_ebpf_function compile();
-        precompiled_ebpf_function get_entry_address();
+        ebpf_llvm_jit::utils::precompiled_ebpf_function compile();
+        ebpf_llvm_jit::utils::precompiled_ebpf_function get_entry_address();
         std::vector<uint8_t> do_aot_compile(bool print_ir = false);
         void load_aot_object(const std::vector<uint8_t> &buf);
     };

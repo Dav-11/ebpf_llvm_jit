@@ -2,6 +2,8 @@
 
 include(FetchContent)
 
+message(STATUS "Downloading and building llvm...")
+
 FetchContent_Declare(
         llvm
         GIT_REPOSITORY https://github.com/llvm/llvm-project.git
@@ -26,13 +28,16 @@ find_package(LLVM REQUIRED CONFIG)
 
 # Link LLVM components
 llvm_map_components_to_libnames(LLVM_LIBRARIES
-        OrcJIT
-        Core
-        ExecutionEngine
-        MCJIT
-        Support
+        all
+        orcjit
+        core
+        executionengine
+        mcjit
+        support
 )
 
 # Provide LLVM variables to the main CMakeLists.txt
 set(LLVM_INCLUDE_DIRS ${LLVM_INCLUDE_DIRS})
 set(LLVM_LIBRARIES ${LLVM_LIBRARIES})
+
+message(STATUS "DONE")

@@ -1,8 +1,10 @@
+# IDEs
 .idea
 .vscode
 .fleet
 .zed
 
+#MacOS
 .DS_Store
 
 # CMAKE
@@ -20,3 +22,5 @@ CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
 
+# Dependencies
+third_party/libbpf

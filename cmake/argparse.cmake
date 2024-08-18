@@ -2,6 +2,8 @@
 
 include(FetchContent)
 
+message(STATUS "Downloading and building argparse...")
+
 # Declare the argparse content to be fetched
 FetchContent_Declare(
         argparse
@@ -16,3 +18,5 @@ FetchContent_MakeAvailable(argparse)
 # Set argparse include directories and libraries
 set(ARGPARSE_INCLUDE_DIRS ${argparse_SOURCE_DIR}/include)
 set(ARGPARSE_LIBRARIES argparse)
+
+message(STATUS "DONE")
