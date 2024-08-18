@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.29)
+cmake_minimum_required(VERSION 3.25)
 set(CMAKE_CXX_STANDARD 17)
 
 project(
@@ -39,7 +39,9 @@ add_executable(ebpf_llvm_jit
         src/jit/bpftime_llvm_jit_vm.cpp
         src/jit/bpftime_llvm_jit_vm.h
         src/jit/llvm_bpf_jit_context.cpp
-        src/jit/llvm_bpf_jit_context.h)
+        src/jit/llvm_bpf_jit_context.h
+        src/jit/external_function.cpp
+        src/jit/external_function.h)
 
 #######################################
  # EXT LIBRARIES LINKING

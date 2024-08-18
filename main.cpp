@@ -1,6 +1,15 @@
 #include <filesystem>
+#include <cstdint>
+#include <iostream>
+#include <libelf.h>
+#include <string>
+#include <unistd.h>
+#include <fstream>
 
 #include <bpf/libbpf.h>
+
+#include <llvm/ExecutionEngine/Orc/LLJIT.h>
+#include <llvm/Support/MemoryBuffer.h>
 
 #include "spdlog/spdlog.h"
 #include "spdlog/cfg/env.h"
@@ -52,57 +61,12 @@ static int build_ebpf_program(const std::string &ebpf_elf,
     return 0;
 }
 
-//static ExitOnError exit_on_error;
-//using bpf_func = uint64_t (*)(const void *, uint64_t);
-//
-//static int run_ebpf_program(const std::filesystem::path &elf,
-//                            std::optional<std::string> memory)
-//{
-//    auto jit = exit_on_error(LLJITBuilder().create());
-//
-//    if (auto file_buf = MemoryBuffer::getFile(elf.c_str()); file_buf) {
-//        exit_on_error(jit->addObjectFile(std::move(*file_buf)));
-//    } else {
-//        SPDLOG_ERROR("Unable to read elf file: {}",
-//                     file_buf.getError().message());
-//        return 1;
-//    }
-//    if (auto ret = jit->lookup("bpf_main"); ret) {
-//        auto func = ret->toPtr<bpf_func>();
-//        uint64_t result;
-//        if (memory.has_value()) {
-//            std::ifstream ifs(*memory,
-//                              std::ios::binary | std::ios::ate);
-//            if (!ifs.is_open()) {
-//                SPDLOG_ERROR("Unable to open memory file");
-//                return 1;
-//            }
-//            std::streamsize size = ifs.tellg();
-//            ifs.seekg(0, std::ios::beg);
-//            std::vector<uint8_t> buffer(size);
-//            if (!ifs.read((char *)buffer.data(), size)) {
-//                SPDLOG_ERROR("Unable to read memory");
-//                return 1;
-//            }
-//            SPDLOG_INFO("Memory size: {}", size);
-//            result = func(buffer.data(), buffer.size());
-//        } else {
-//            result = func(nullptr, 0);
-//        }
-//        SPDLOG_INFO("Output: {}", result);
-//        return 0;
-//    } else {
-//        std::string buf;
-//        raw_string_ostream os(buf);
-//        os << ret.takeError();
-//        SPDLOG_ERROR("Unable to lookup bpf_main: {}", buf);
-//        return 1;
-//    }
-//}
-
 
 int main(int argc, const char **argv)
 {
+
+    // set global level to debug:
+    // export SPDLOG_LEVEL=debug
     spdlog::cfg::load_env_levels();
 
 //    ????????
@@ -120,14 +84,15 @@ int main(int argc, const char **argv)
     build_command.add_argument("EBPF_ELF")
             .help("Path to an eBPF ELF executable");
 
-    argparse::ArgumentParser run_command("run");
-    run_command.add_description("Run an native eBPF program");
-    run_command.add_argument("PATH").help("Path to the ELF file");
-    run_command.add_argument("MEMORY")
-            .help("Path to the memory file")
-            .nargs(0, 1);
+//    argparse::ArgumentParser run_command("run");
+//    run_command.add_description("Run an native eBPF program");
+//    run_command.add_argument("PATH").help("Path to the ELF file");
+//    run_command.add_argument("MEMORY")
+//            .help("Path to the memory file")
+//            .nargs(0, 1);
+
     program.add_subparser(build_command);
-    program.add_subparser(run_command);
+//    program.add_subparser(run_command);
 
     try {
         program.parse_args(argc, argv);
@@ -145,8 +110,10 @@ int main(int argc, const char **argv)
         return build_ebpf_program(
                 build_command.get<std::string>("EBPF_ELF"),
                 build_command.get<std::string>("output"));
-    } else if (program.is_subcommand_used(run_command)) {
+    }
 
+
+//    else if (program.is_subcommand_used(run_command)) {
 //        if (run_command.is_used("MEMORY")) {
 //            return run_ebpf_program(
 //                    run_command.get<std::string>("PATH"),

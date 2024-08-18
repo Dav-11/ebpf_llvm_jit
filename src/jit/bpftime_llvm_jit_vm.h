@@ -1,7 +1,3 @@
-//
-// Created by root on 8/17/24.
-//
-
 #ifndef EBPF_LLVM_JIT_BPFTIME_LLVM_JIT_VM_H
 #define EBPF_LLVM_JIT_BPFTIME_LLVM_JIT_VM_H
 
@@ -10,6 +6,12 @@
 #include <vector>
 
 #include "../ebpf_inst.h"
+#include "external_function.h"
+#include "llvm_bpf_jit_context.h"
+
+#ifndef MAX_EXT_FUNCS
+#define MAX_EXT_FUNCS 8192
+#endif
 
 namespace ebpf_llvm_jit::jit {
 
@@ -19,7 +21,7 @@ namespace ebpf_llvm_jit::jit {
     public:
 
         bpftime_llvm_jit_vm();
-        /* override */
+
         std::string get_error_message();
         int register_external_function(size_t index, const std::string &name, void *fn);
         int load_code(const void *code, size_t code_len) ;
@@ -35,7 +37,7 @@ namespace ebpf_llvm_jit::jit {
                               uint64_t (*var_addr)(uint32_t),
                               uint64_t (*code_addr)(uint32_t));
 
-        class ::llvm_bpf_jit_context *get_jit_context()
+        class llvm_bpf_jit_context *get_jit_context()
         {
             return jit_ctx.get();
         }
@@ -47,13 +49,13 @@ namespace ebpf_llvm_jit::jit {
         uint64_t (*var_addr)(uint32_t) = nullptr;
         uint64_t (*code_addr)(uint32_t) = nullptr;
         std::vector<ebpf_inst> instructions;
-        std::vector<std::optional<external_function> > ext_funcs;
+        std::vector<std::optional<external_function>> ext_funcs;
 
         std::unique_ptr<llvm_bpf_jit_context> jit_ctx;
-        friend class ::llvm_bpf_jit_context;
+        friend class llvm_bpf_jit_context;
 
         std::string error_msg;
-        std::optional<compat::precompiled_ebpf_function> jitted_function;
+        std::optional<precompiled_ebpf_function> jitted_function;
     };
 
 }
