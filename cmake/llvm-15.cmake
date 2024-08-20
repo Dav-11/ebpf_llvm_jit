@@ -28,12 +28,11 @@ find_package(LLVM REQUIRED CONFIG)
 
 # Link LLVM components
 llvm_map_components_to_libnames(LLVM_LIBRARIES
-        all
-        orcjit
-        core
-        executionengine
+        Core
+        OrcJIT
         mcjit
-        support
+        Support
+        nativecodegen
 )
 
 # Provide LLVM variables to the main CMakeLists.txt

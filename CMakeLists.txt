@@ -13,7 +13,8 @@ include(FetchContent)
  # INCLUDE OTHER .CMAKE
 #######################################
 include(cmake/libbpf.cmake)
-include(cmake/llvm-15.cmake)
+#include(cmake/llvm-15.cmake)
+include(cmake/llvm-os.cmake)
 include(cmake/argparse.cmake)
 include(cmake/spdlog.cmake)
 
@@ -39,15 +40,20 @@ add_executable(ebpf_llvm_jit
         src/jit/llvm_bpf_jit_context.h
         src/jit/external_function.cpp
         src/jit/external_function.h
-        src/utils/bo.h)
+        src/utils/bo.h
+        src/jit/compiler.cpp
+        src/jit/code_gen.cpp
+        src/jit/code_gen.h)
 
 #######################################
  # EXT LIBRARIES LINKING
 #######################################
-target_link_libraries(ebpf_llvm_jit PRIVATE ${LIBBPF_LIBRARIES})
-target_link_libraries(ebpf_llvm_jit PRIVATE ${LLVM_LIBRARIES})
-target_link_libraries(ebpf_llvm_jit PRIVATE ${ARGPARSE_LIBRARIES})
-target_link_libraries(ebpf_llvm_jit PRIVATE ${SPDLOG_LIBRARIES})
+#target_link_libraries(ebpf_llvm_jit PRIVATE ${LIBBPF_LIBRARIES})
+#target_link_libraries(ebpf_llvm_jit PRIVATE ${LLVM_LIBRARIES})
+#target_link_libraries(ebpf_llvm_jit PRIVATE ${ARGPARSE_LIBRARIES})
+#target_link_libraries(ebpf_llvm_jit PRIVATE ${SPDLOG_LIBRARIES})
+
+target_link_libraries(ebpf_llvm_jit PUBLIC ${LLVM_LIBRARIES} PRIVATE spdlog::spdlog argparse ${LIBBPF_LIBRARIES} elf z)
 
 
 # IDK WHAT THIS DOES

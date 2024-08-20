@@ -18,6 +18,11 @@
 #define EBPF_INST_H
 #include <stdint.h>
 
+#ifndef EBPF_STACK_SIZE
+// Compatible to C headers
+#define EBPF_STACK_SIZE 512
+#endif
+
 /* eBPF definitions */
 struct ebpf_inst {
     uint8_t code; /* opcode */
