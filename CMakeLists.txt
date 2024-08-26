@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.22)
 set(CMAKE_CXX_STANDARD 17)
 
 project(
@@ -13,8 +13,8 @@ include(FetchContent)
  # INCLUDE OTHER .CMAKE
 #######################################
 include(cmake/libbpf.cmake)
-#include(cmake/llvm-15.cmake)
-include(cmake/llvm-os.cmake)
+include(cmake/llvm-15.cmake)
+#include(cmake/llvm-os.cmake)
 include(cmake/argparse.cmake)
 include(cmake/spdlog.cmake)
 
