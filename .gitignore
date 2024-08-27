@@ -22,6 +22,9 @@ CTestTestfile.cmake
 _deps
 CMakeUserPresets.json
 libbpf-prefix
+*.gch
+
+!examples/**/Makefile
 
 # Dependencies
 third_party/libbpf
