@@ -2,7 +2,7 @@
 // Created by root on 8/17/24.
 //
 
-#include "llvm_bpf_jit_context.h"
+#include "context.h"
 #include "spdlog/spdlog.h"
 
 #include "llvm/IR/Module.h"
@@ -86,7 +86,7 @@ extern "C" void __aeabi_unwind_cpp_pr1();
 
 
 
-llvm_bpf_jit_context::llvm_bpf_jit_context(class bpftime_llvm_jit_vm *vm): vm(vm)
+context::context(class vm *vm): vm(vm)
 {
     using namespace llvm;
     int zero = 0;
@@ -100,7 +100,7 @@ llvm_bpf_jit_context::llvm_bpf_jit_context(class bpftime_llvm_jit_vm *vm): vm(vm
     pthread_spin_init(compiling.get(), PTHREAD_PROCESS_PRIVATE);
 }
 
-void llvm_bpf_jit_context::do_jit_compile()
+void context::do_jit_compile()
 {
     auto [jit, extFuncNames, definedLddwHelpers] =
             create_and_initialize_lljit_instance();
@@ -111,7 +111,7 @@ void llvm_bpf_jit_context::do_jit_compile()
     this->jit = std::move(jit);
 }
 
-ebpf_llvm_jit::utils::precompiled_ebpf_function llvm_bpf_jit_context::compile() {
+ebpf_llvm_jit::utils::precompiled_ebpf_function context::compile() {
 
     spin_lock_guard guard(compiling.get());
     if (!this->jit.has_value()) {
@@ -123,16 +123,16 @@ ebpf_llvm_jit::utils::precompiled_ebpf_function llvm_bpf_jit_context::compile() 
     return this->get_entry_address();
 }
 
-llvm_bpf_jit_context::~llvm_bpf_jit_context()
+context::~context()
 {
     pthread_spin_destroy(compiling.get());
 }
 
-std::vector<uint8_t> llvm_bpf_jit_context::do_aot_compile(
+std::vector<uint8_t> context::do_aot_compile(
         const std::vector<std::string> &extFuncNames,
         const std::vector<std::string> &lddwHelpers, bool print_ir)
 {
-    SPDLOG_DEBUG("AOT: start");
+    SPDLOG_INFO("AOT: start");
     if (auto module = generateModule(extFuncNames, lddwHelpers, false);
             module) {
 
@@ -143,15 +143,15 @@ std::vector<uint8_t> llvm_bpf_jit_context::do_aot_compile(
         LLVMInitializeAllAsmPrinters();
 
         auto defaultTargetTriple = llvm::sys::getDefaultTargetTriple();
-        defaultTargetTriple = "riscv64-unknown-linux-gnu";
+        //std::basic_string<char> defaultTargetTriple = "riscv64-unknown-linux-gnu";
 
-        SPDLOG_DEBUG("AOT: target triple: {}", defaultTargetTriple);
+        SPDLOG_INFO("AOT: target triple: {}", defaultTargetTriple);
         return module->withModuleDo([&](auto &module)
                                             -> std::vector<uint8_t> {
             if (print_ir) {
                 module.print(llvm::errs(), nullptr);
             }
-            optimizeModule(module);
+            //optimizeModule(module);
             module.setTargetTriple(defaultTargetTriple);
             std::string error;
             auto target = llvm::TargetRegistry::lookupTarget(
@@ -218,13 +218,16 @@ std::vector<uint8_t> llvm_bpf_jit_context::do_aot_compile(
     }
 }
 
-std::vector<uint8_t> llvm_bpf_jit_context::do_aot_compile(bool print_ir)
+std::vector<uint8_t> context::do_aot_compile(bool print_ir)
 {
     std::vector<std::string> extNames, lddwNames;
 
     for (uint32_t i = 0; i < std::size(vm->ext_funcs); i++) {
 
         if (vm->ext_funcs[i].has_value()) {
+
+            SPDLOG_INFO("Found ext_fn non empty: {} -> {}", i, vm->ext_funcs[i]->name);
+
 #if LLVM_VERSION_MAJOR >= 16
             extNames.emplace_back(ext_func_sym(i));
 #else
@@ -252,7 +255,7 @@ std::vector<uint8_t> llvm_bpf_jit_context::do_aot_compile(bool print_ir)
     return this->do_aot_compile(extNames, lddwNames, print_ir);
 }
 
-void llvm_bpf_jit_context::load_aot_object(const std::vector<uint8_t> &buf)
+void context::load_aot_object(const std::vector<uint8_t> &buf)
 {
     SPDLOG_INFO("LLVM-JIT: Loading aot object");
     if (jit.has_value()) {
@@ -278,7 +281,7 @@ void llvm_bpf_jit_context::load_aot_object(const std::vector<uint8_t> &buf)
 
 std::tuple<std::unique_ptr<llvm::orc::LLJIT>, std::vector<std::string>,
         std::vector<std::string> >
-llvm_bpf_jit_context::create_and_initialize_lljit_instance()
+context::create_and_initialize_lljit_instance()
 {
     // Create a JIT builder
     SPDLOG_DEBUG("LLVM-JIT: Creating LLJIT instance");
@@ -356,7 +359,7 @@ llvm_bpf_jit_context::create_and_initialize_lljit_instance()
 }
 
 ebpf_llvm_jit::utils::precompiled_ebpf_function
-llvm_bpf_jit_context::get_entry_address()
+context::get_entry_address()
 {
     if (!this->jit.has_value()) {
         SPDLOG_CRITICAL(

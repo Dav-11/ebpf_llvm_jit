@@ -2,8 +2,8 @@
 // Created by root on 8/17/24.
 //
 
-#ifndef EBPF_LLVM_JIT_LLVM_BPF_JIT_CONTEXT_H
-#define EBPF_LLVM_JIT_LLVM_BPF_JIT_CONTEXT_H
+#ifndef EBPF_LLVM_JIT_CONTEXT_H
+#define EBPF_LLVM_JIT_CONTEXT_H
 
 #include <optional>
 #include <memory>
@@ -14,7 +14,7 @@
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/MCJIT.h>
-#include "bpftime_llvm_jit_vm.h"
+#include "vm.h"
 #include "../utils/bo.h"
 
 #define IS_ALIGNED(x, a) (((uintptr_t)(x) & ((a)-1)) == 0)
@@ -27,8 +27,8 @@ namespace ebpf_llvm_jit::jit {
     const static char *LDDW_HELPER_VAR_ADDR = "__lddw_helper_var_addr";
     const static char *LDDW_HELPER_CODE_ADDR = "__lddw_helper_code_addr";
 
-    class llvm_bpf_jit_context {
-        class bpftime_llvm_jit_vm *vm;
+    class context {
+        class vm *vm;
         std::optional<std::unique_ptr<llvm::orc::LLJIT> > jit;
         std::unique_ptr<pthread_spinlock_t> compiling;
         llvm::Expected<llvm::orc::ThreadSafeModule>
@@ -46,8 +46,8 @@ namespace ebpf_llvm_jit::jit {
 
     public:
         void do_jit_compile();
-        llvm_bpf_jit_context(class bpftime_llvm_jit_vm *vm);
-        virtual ~llvm_bpf_jit_context();
+        context(class vm *vm);
+        virtual ~context();
         ebpf_llvm_jit::utils::precompiled_ebpf_function compile();
         ebpf_llvm_jit::utils::precompiled_ebpf_function get_entry_address();
         std::vector<uint8_t> do_aot_compile(bool print_ir = false);
@@ -55,4 +55,4 @@ namespace ebpf_llvm_jit::jit {
     };
 }
 
-#endif //EBPF_LLVM_JIT_LLVM_BPF_JIT_CONTEXT_H
+#endif //EBPF_LLVM_JIT_CONTEXT_H

@@ -24,7 +24,7 @@
 
 #include <spdlog/spdlog.h>
 
-#include "llvm_bpf_jit_context.h"
+#include "context.h"
 #include "../ebpf_inst.h"
 
 namespace ebpf_llvm_jit::jit {

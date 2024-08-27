@@ -34,16 +34,22 @@ include_directories(${SPDLOG_INCLUDE_DIRS})
 add_executable(ebpf_llvm_jit
         main.cpp
         src/ebpf_inst.h
-        src/jit/bpftime_llvm_jit_vm.cpp
-        src/jit/bpftime_llvm_jit_vm.h
-        src/jit/llvm_bpf_jit_context.cpp
-        src/jit/llvm_bpf_jit_context.h
+        src/jit/vm.cpp
+        src/jit/vm.h
+        src/jit/context.cpp
+        src/jit/context.h
         src/jit/external_function.cpp
         src/jit/external_function.h
         src/utils/bo.h
         src/jit/compiler.cpp
         src/jit/code_gen.cpp
-        src/jit/code_gen.h)
+        src/jit/code_gen.h
+        src/helpers/helper.cpp
+        src/helpers/helper.h
+        src/include/helpers_impl.c
+        src/include/helpers_impl.h
+        examples/01/main.c
+)
 
 #######################################
  # EXT LIBRARIES LINKING

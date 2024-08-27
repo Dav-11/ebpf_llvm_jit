@@ -297,12 +297,17 @@ namespace ebpf_llvm_jit::jit {
                     llvm::Value **regs, llvm::FunctionType *helperFuncTy,
                     uint16_t pc, llvm::BasicBlock *exitBlk)
     {
+        for (const auto& pair : extFunc) {
+            SPDLOG_INFO("extFunc {} -> {}", pair.first, (pair.second != NULL));
+        }
+
         auto funcNameToCall = ext_func_sym(inst.imm);
         if (auto itr = extFunc.find(funcNameToCall); itr != extFunc.end()) {
-            SPDLOG_DEBUG("Emitting ext func call to {} name {} at pc {}",
+            SPDLOG_INFO("Emitting ext func call to {} name {} at pc {}",
                          inst.imm, funcNameToCall, pc);
             auto callInst = builder.CreateCall(
-                    helperFuncTy, itr->second,
+                    helperFuncTy,
+                    itr->second,
                     {
                             builder.CreateLoad(builder.getInt64Ty(),
                                                regs[1]),

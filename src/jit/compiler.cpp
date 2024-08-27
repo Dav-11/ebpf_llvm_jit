@@ -5,7 +5,7 @@
  */
 
 #include "llvm/IR/Argument.h"
-#include "llvm_bpf_jit_context.h"
+#include "context.h"
 #include "../ebpf_inst.h"
 
 #include <cassert>
@@ -30,7 +30,7 @@
 #include "spdlog/spdlog.h"
 #include <spdlog/spdlog.h>
 #include "code_gen.h"
-#include "bpftime_llvm_jit_vm.h"
+#include "vm.h"
 
 
 using namespace llvm;
@@ -89,7 +89,7 @@ const size_t MAX_LOCAL_FUNC_DEPTH = 32;
 	Other:
 	EBPF_OP_EXIT, EBPF_OP_CALL
 */
-Expected<ThreadSafeModule> llvm_bpf_jit_context::generateModule(
+Expected<ThreadSafeModule> context::generateModule(
         const std::vector<std::string> &extFuncNames,
         const std::vector<std::string> &lddwHelpers,
         bool patch_map_val_at_compile_time)
@@ -105,13 +105,25 @@ Expected<ThreadSafeModule> llvm_bpf_jit_context::generateModule(
                 llvm::inconvertibleErrorCode());
     }
 
-    // Define lddw helper function type
+    // Define lddw helper function type (does not add them to LLVM IR)
+    /*
+     *
+     * - FunctionType: This is an LLVM class that represents the type of a function. The function type includes the return type and the parameter types.
+     * - Type::getInt64Ty(*context): This method gets the LLVM type corresponding to a 64-bit integer. The context is an LLVM LLVMContext object that holds context-specific information (like type definitions).
+     * - { Type::getInt32Ty(*context) }: This defines the parameters of the function. Here, a function with a single 32-bit integer (Int32Ty) parameter is defined.
+     * - false: This indicates that the function is not variadic (i.e., it does not accept a variable number of arguments).
+     *
+     * So, in summary:
+     * - lddwHelperWithUint32 is a function type that returns a 64-bit integer and takes one 32-bit integer as an argument.
+     * - lddwHelperWithUint64 is a function type that returns a 64-bit integer and takes one 64-bit integer as an argument.
+     */
     FunctionType *lddwHelperWithUint32 =
             FunctionType::get(Type::getInt64Ty(*context),
                               { Type::getInt32Ty(*context) }, false);
     FunctionType *lddwHelperWithUint64 =
             FunctionType::get(Type::getInt64Ty(*context),
                               { Type::getInt64Ty(*context) }, false);
+
     std::map<std::string, Function *> lddwHelper;
     for (const auto &helperName : lddwHelpers) {
         Function *func;
@@ -130,13 +142,17 @@ Expected<ThreadSafeModule> llvm_bpf_jit_context::generateModule(
         lddwHelper[helperName] = func;
     }
 
-    // Define ext functions
+    // Define ext functions types  (does not add them to LLVM IR)
     std::map<std::string, Function *> extFunc;
     FunctionType *helperFuncTy = FunctionType::get(
             Type::getInt64Ty(*context),
-            { Type::getInt64Ty(*context), Type::getInt64Ty(*context),
-              Type::getInt64Ty(*context), Type::getInt64Ty(*context),
-              Type::getInt64Ty(*context) },
+            {
+                Type::getInt64Ty(*context),
+                Type::getInt64Ty(*context),
+                Type::getInt64Ty(*context),
+                Type::getInt64Ty(*context),
+                Type::getInt64Ty(*context)
+                },
             false);
 
     for (const auto &name : extFuncNames) {
@@ -145,6 +161,8 @@ Expected<ThreadSafeModule> llvm_bpf_jit_context::generateModule(
                                          name, jitModule.get());
         extFunc[name] = currFunc;
     }
+
+
     std::vector<bool> blockBegin(insts.size(), false);
 
     // Split the blocks
@@ -152,10 +170,14 @@ Expected<ThreadSafeModule> llvm_bpf_jit_context::generateModule(
     for (uint16_t i = 0; i < insts.size(); i++) {
         auto curr = insts[i];
         SPDLOG_TRACE("check pc {} opcode={} ", i, (uint16_t)curr.code);
+
+        // set current insn to block_begin if previous is jump
         if (i > 0 && is_jmp(insts[i - 1])) {
             blockBegin[i] = true;
             SPDLOG_TRACE("mark {} block begin", i);
         }
+
+        // set next insn to block begin if this is jump
         if (is_jmp(curr)) {
             SPDLOG_TRACE("mark {} block begin", i + curr.off + 1);
             blockBegin[i + curr.off + 1] = true;
@@ -164,12 +186,18 @@ Expected<ThreadSafeModule> llvm_bpf_jit_context::generateModule(
 
     // The main function
     Function *bpf_func = Function::Create(
-            FunctionType::get(Type::getInt64Ty(*context),
-                              { llvm::PointerType::getUnqual(
-                                      llvm::Type::getInt8Ty(*context)),
-                                Type::getInt64Ty(*context) },
-                              false),
-            Function::ExternalLinkage, "bpf_main", jitModule.get());
+            FunctionType::get(
+                    Type::getInt64Ty(*context),
+                    {
+                        llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(*context)),
+                        Type::getInt64Ty(*context)
+                    },
+                    false
+            ),
+            Function::ExternalLinkage,
+            "bpf_main",
+            jitModule.get()
+    );
 
     // Get args of uint64_t bpf_main(uint64_t, uint64_t)
     llvm::Argument *mem = bpf_func->getArg(0);
@@ -188,9 +216,13 @@ Expected<ThreadSafeModule> llvm_bpf_jit_context::generateModule(
 
         // Create registers
         for (int i = 0; i <= 10; i++) {
-            regs.push_back(builder.CreateAlloca(
-                    builder.getInt64Ty(), nullptr,
-                    "r" + std::to_string(i)));
+            regs.push_back(
+                    builder.CreateAlloca(
+                        builder.getInt64Ty(),
+                        nullptr,
+                        "r" + std::to_string(i)
+                    )
+            );
         }
 
         // Create stack
@@ -244,7 +276,8 @@ Expected<ThreadSafeModule> llvm_bpf_jit_context::generateModule(
                 // instruction of a local func call
                 if (i > 1 &&
                     insts[i - 1].code == EBPF_OP_CALL &&
-                    insts[i - 1].src_reg == 0x01) {
+                    insts[i - 1].src_reg == 0x01
+                    ) {
                     auto blockAddr =
                             llvm::BlockAddress::get(
                                     bpf_func, currBlk);

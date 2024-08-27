@@ -10,9 +10,24 @@
 #include "spdlog/spdlog.h"
 #include "spdlog/cfg/env.h"
 #include "argparse/argparse.hpp"
-#include "src/jit/bpftime_llvm_jit_vm.h"
-#include "src/jit/llvm_bpf_jit_context.h"
+#include "src/jit/vm.h"
+#include "src/jit/context.h"
+#include "src/helpers/helper.h"
+#include "src/include/helpers_impl.h"
 
+static int add_helpers(ebpf_llvm_jit::jit::vm *vm) {
+    int err;
+
+    ebpf_llvm_jit::helpers::helper bpf_printk = ebpf_llvm_jit::helpers::helper(6, "_bpf_helper_ext_0006", (void *) _bpf_helper_ext_0006);
+    err = bpf_printk.addToVm(vm);
+    if (err) {
+        return err;
+    }
+
+    SPDLOG_INFO("added helper {}", "_bpf_helper_ext_0006 (bpf_printk)");
+
+    return 0;
+}
 
 static int build_ebpf_program(const std::string &ebpf_elf,
                               const std::filesystem::path &output)
@@ -31,7 +46,12 @@ static int build_ebpf_program(const std::string &ebpf_elf,
         auto name = bpf_program__name(prog);
         SPDLOG_INFO("Processing program {}", name);
 
-        ebpf_llvm_jit::jit::bpftime_llvm_jit_vm vm;
+        ebpf_llvm_jit::jit::vm vm;
+
+        if (add_helpers(&vm)) {
+            SPDLOG_ERROR("error while loading helpers");
+            return 1;
+        }
 
         if (vm.load_code(
             (const void *)bpf_program__insns(prog),
@@ -43,10 +63,10 @@ static int build_ebpf_program(const std::string &ebpf_elf,
             return 1;
         }
 
-        ebpf_llvm_jit::jit::llvm_bpf_jit_context ctx(&vm);
+        ebpf_llvm_jit::jit::context ctx(&vm);
 
         // write result to file
-        auto result = ctx.do_aot_compile();
+        auto result = ctx.do_aot_compile(true);
         auto out_path = output / (std::string(name) + ".o");
         std::ofstream ofs(out_path, std::ios::binary);
         ofs.write((const char *)result.data(), result.size());
@@ -63,7 +83,9 @@ int main(int argc, const char **argv)
 
     // set global level to debug:
     // export SPDLOG_LEVEL=debug
-    spdlog::cfg::load_env_levels();
+    // spdlog::cfg::load_env_levels();
+    spdlog::set_level(spdlog::level::trace);
+
 
 //    ????????
 //    InitializeNativeTarget();

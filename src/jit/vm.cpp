@@ -2,32 +2,34 @@
 // Created by root on 8/17/24.
 //
 
-#include "bpftime_llvm_jit_vm.h"
-#include "llvm_bpf_jit_context.h"
+#include "vm.h"
+#include "context.h"
 #include "spdlog/spdlog.h"
 #include <cerrno>
 
 using namespace ebpf_llvm_jit::jit;
 
-bpftime_llvm_jit_vm::bpftime_llvm_jit_vm() : ext_funcs(MAX_EXT_FUNCS)
+vm::vm() : ext_funcs(MAX_EXT_FUNCS)
 {
-    this->jit_ctx = std::make_unique<llvm_bpf_jit_context>(this);
+    this->jit_ctx = std::make_unique<context>(this);
 }
 
-std::string bpftime_llvm_jit_vm::get_error_message()
+std::string vm::get_error_message()
 {
     return error_msg;
 }
 
-int bpftime_llvm_jit_vm::register_external_function(size_t index, const std::string &name, void *fn)
+int vm::register_external_function(size_t index, const std::string &name, void *fn)
 {
     if (index >= ext_funcs.size()) {
         error_msg = "Index too large";
+        SPDLOG_ERROR("Index too large {} for ext func {}", index, name);
         return -E2BIG;
     }
 
     if (ext_funcs[index].has_value()) {
         error_msg = "Already defined";
+        SPDLOG_ERROR("Index {} already occupied by {}", index, ext_funcs[index]->name);
         return -EEXIST;
     }
 
@@ -35,7 +37,7 @@ int bpftime_llvm_jit_vm::register_external_function(size_t index, const std::str
     return 0;
 }
 
-int bpftime_llvm_jit_vm::load_code(const void *code, size_t code_len)
+int vm::load_code(const void *code, size_t code_len)
 {
     if (code_len % 8 != 0) {
         error_msg = "Code len must be a multiple of 8";
@@ -46,12 +48,12 @@ int bpftime_llvm_jit_vm::load_code(const void *code, size_t code_len)
     return 0;
 }
 
-void bpftime_llvm_jit_vm::unload_code()
+void vm::unload_code()
 {
     instructions.clear();
 }
 
-int bpftime_llvm_jit_vm::exec(void *mem, size_t mem_len, uint64_t &bpf_return_value)
+int vm::exec(void *mem, size_t mem_len, uint64_t &bpf_return_value)
 {
     if (jitted_function) {
         SPDLOG_DEBUG("llvm-jit: Called jitted function {:x}",
@@ -74,11 +76,11 @@ int bpftime_llvm_jit_vm::exec(void *mem, size_t mem_len, uint64_t &bpf_return_va
     return exec(mem, mem_len, bpf_return_value);
 }
 
-void bpftime_llvm_jit_vm::set_lddw_helpers(uint64_t (*map_by_fd)(uint32_t),
-                                           uint64_t (*map_by_idx)(uint32_t),
-                                           uint64_t (*map_val)(uint64_t),
-                                           uint64_t (*var_addr)(uint32_t),
-                                           uint64_t (*code_addr)(uint32_t))
+void vm::set_lddw_helpers(uint64_t (*map_by_fd)(uint32_t),
+                          uint64_t (*map_by_idx)(uint32_t),
+                          uint64_t (*map_val)(uint64_t),
+                          uint64_t (*var_addr)(uint32_t),
+                          uint64_t (*code_addr)(uint32_t))
 {
     this->map_by_fd = map_by_fd;
     this->map_by_idx = map_by_idx;
@@ -87,13 +89,13 @@ void bpftime_llvm_jit_vm::set_lddw_helpers(uint64_t (*map_by_fd)(uint32_t),
     this->code_addr = code_addr;
 }
 
-std::vector<uint8_t> bpftime_llvm_jit_vm::do_aot_compile(bool print_ir)
+std::vector<uint8_t> vm::do_aot_compile(bool print_ir)
 {
     return this->jit_ctx->do_aot_compile(print_ir);
 }
 
 std::optional<ebpf_llvm_jit::utils::precompiled_ebpf_function>
-bpftime_llvm_jit_vm::compile()
+vm::compile()
 {
     auto func = jit_ctx->compile();
     jitted_function = func;
@@ -101,7 +103,7 @@ bpftime_llvm_jit_vm::compile()
 }
 
 std::optional<ebpf_llvm_jit::utils::precompiled_ebpf_function>
-bpftime_llvm_jit_vm::load_aot_object(const std::vector<uint8_t> &object)
+vm::load_aot_object(const std::vector<uint8_t> &object)
 {
     if (jitted_function) {
         error_msg = "Already compiled";
