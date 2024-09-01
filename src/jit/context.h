@@ -16,6 +16,7 @@
 #include <llvm/ExecutionEngine/MCJIT.h>
 #include "vm.h"
 #include "../utils/bo.h"
+#include "../helpers/helper.h"
 
 #define IS_ALIGNED(x, a) (((uintptr_t)(x) & ((a)-1)) == 0)
 
@@ -48,8 +49,8 @@ namespace ebpf_llvm_jit::jit {
         void do_jit_compile();
         context(class vm *vm);
         virtual ~context();
-        ebpf_llvm_jit::utils::precompiled_ebpf_function compile();
-        ebpf_llvm_jit::utils::precompiled_ebpf_function get_entry_address();
+        ebpf_llvm_jit::helpers::precompiled_ebpf_function compile();
+        ebpf_llvm_jit::helpers::precompiled_ebpf_function get_entry_address();
         std::vector<uint8_t> do_aot_compile(bool print_ir = false);
         void load_aot_object(const std::vector<uint8_t> &buf);
     };

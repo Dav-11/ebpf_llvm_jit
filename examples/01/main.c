@@ -33,7 +33,11 @@ struct xdp_md {
 // Function to process each received packet
 struct xdp_md *create_xdp_struct(unsigned char *buffer, int buflen) {
 
-    struct xdp_md *xdp = malloc(sizeof(struct xdp_md));
+    struct xdp_md *xdp = (struct xdp_md *)malloc(sizeof(struct xdp_md));
+    if (xdp == NULL) {
+        perror("Malloc Error");
+        return NULL;
+    }
 
     // Simulating the filling of xdp_md struct
     xdp->data = (unsigned long)buffer;
@@ -50,9 +54,11 @@ struct xdp_md *create_xdp_struct(unsigned char *buffer, int buflen) {
 
     // Print the data pointers for demonstration
     printf("Packet processed:\n");
-    printf("  Data: %p\n", (void *)xdp->data);
-    printf("  Data End: %p\n", (void *)xdp->data_end);
-    printf("  Data Length: %ld\n", xdp->data_end - xdp->data);
+    printf("  Data: %u\n", xdp->data);
+    printf("  Data End: %u\n", xdp->data_end);
+    printf("  Data Length: %u\n", xdp->data_end - xdp->data);
+
+    printf("here\n");
 
     return xdp;
 }
@@ -101,6 +107,8 @@ int main() {
 
         // Create xdp struct
         xdp = create_xdp_struct(buffer, buflen);
+        printf("created xdp structure from sock buffer");
+
         bpf_main(&xdp, sizeof(xdp));
 
         free(xdp);

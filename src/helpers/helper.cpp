@@ -5,6 +5,7 @@
 #include "helper.h"
 
 #include <utility>
+#include <stdarg.h>
 
 int ebpf_llvm_jit::helpers::helper::addToVm(ebpf_llvm_jit::jit::vm *vm) {
     return vm->register_external_function(index, name, fn);
