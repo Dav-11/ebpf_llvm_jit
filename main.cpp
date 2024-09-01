@@ -30,7 +30,7 @@ static int add_helpers(ebpf_llvm_jit::jit::vm *vm) {
 }
 
 static int build_ebpf_program(const std::string &ebpf_elf,
-                              const std::filesystem::path &output)
+                              const std::filesystem::path &output, bool to_riscv)
 {
     bpf_object *obj = bpf_object__open(ebpf_elf.c_str());
     if (!obj) {
@@ -66,7 +66,7 @@ static int build_ebpf_program(const std::string &ebpf_elf,
         ebpf_llvm_jit::jit::context ctx(&vm);
 
         // write result to file
-        auto result = ctx.do_aot_compile(true);
+        auto result = ctx.do_aot_compile(true, to_riscv);
         auto out_path = output / (std::string(name) + ".o");
         std::ofstream ofs(out_path, std::ios::binary);
         ofs.write((const char *)result.data(), result.size());
@@ -101,6 +101,9 @@ int main(int argc, const char **argv)
             .help("Output directory (There might be multiple output files for a single input)");
     build_command.add_argument("EBPF_ELF")
             .help("Path to an eBPF ELF executable");
+    build_command.add_argument("-rv", "--riscv_enabled")
+            .default_value(false)
+            .help("If true, xcompiles to riscv");
 
 //    argparse::ArgumentParser run_command("run");
 //    run_command.add_description("Run an native eBPF program");
@@ -127,7 +130,8 @@ int main(int argc, const char **argv)
     if (program.is_subcommand_used(build_command)) {
         return build_ebpf_program(
                 build_command.get<std::string>("EBPF_ELF"),
-                build_command.get<std::string>("output"));
+                build_command.get<std::string>("output"),
+                build_command.get<bool>("riscv_enabled"));
     }
 
 

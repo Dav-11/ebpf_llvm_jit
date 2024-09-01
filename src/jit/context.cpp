@@ -130,7 +130,9 @@ context::~context()
 
 std::vector<uint8_t> context::do_aot_compile(
         const std::vector<std::string> &extFuncNames,
-        const std::vector<std::string> &lddwHelpers, bool print_ir)
+        const std::vector<std::string> &lddwHelpers,
+        bool print_ir,
+        bool riscv)
 {
     SPDLOG_INFO("AOT: start");
     if (auto module = generateModule(extFuncNames, lddwHelpers, false);
@@ -143,7 +145,10 @@ std::vector<uint8_t> context::do_aot_compile(
         LLVMInitializeAllAsmPrinters();
 
         auto defaultTargetTriple = llvm::sys::getDefaultTargetTriple();
-        //std::basic_string<char> defaultTargetTriple = "riscv64-unknown-linux-gnu";
+
+        if (riscv) {
+            defaultTargetTriple = "riscv64-unknown-linux-gnu";
+        }
 
         SPDLOG_INFO("AOT: target triple: {}", defaultTargetTriple);
         return module->withModuleDo([&](auto &module)
@@ -218,7 +223,7 @@ std::vector<uint8_t> context::do_aot_compile(
     }
 }
 
-std::vector<uint8_t> context::do_aot_compile(bool print_ir)
+std::vector<uint8_t> context::do_aot_compile(bool print_ir, bool riscv)
 {
     std::vector<std::string> extNames, lddwNames;
 
@@ -252,7 +257,7 @@ std::vector<uint8_t> context::do_aot_compile(bool print_ir)
     // tryDefineLddwHelper(LDDW_HELPER_MAP_BY_IDX, (void *)vm->map_by_idx);
     // tryDefineLddwHelper(LDDW_HELPER_CODE_ADDR, (void *)vm->code_addr);
     // tryDefineLddwHelper(LDDW_HELPER_VAR_ADDR, (void *)vm->var_addr);
-    return this->do_aot_compile(extNames, lddwNames, print_ir);
+    return this->do_aot_compile(extNames, lddwNames, print_ir, riscv);
 }
 
 void context::load_aot_object(const std::vector<uint8_t> &buf)
