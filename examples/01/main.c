@@ -2,13 +2,15 @@
 // Created by root on 8/27/24.
 //
 
-#include "../../src/include/helpers_impl.h"
+//#include "../../src/include/helpers_impl.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <errno.h>
+#include <ctype.h>
+#include <stdarg.h>
 #include <netinet/ip.h>
 #include <netinet/if_ether.h>
 #include <arpa/inet.h>
@@ -30,8 +32,46 @@ struct xdp_md {
     __u32 egress_ifindex;   /* txq->dev->ifindex */
 };
 
+// Function to hexdump the content of the xdp_md structure with char representation
+void hexdump_xdp_md(struct xdp_md *xdp) {
+    unsigned char *ptr = (unsigned char *)xdp;
+    size_t size = sizeof(struct xdp_md);
+
+    printf("Hexdump of xdp_md structure:\n");
+
+    for (size_t i = 0; i < size; i += 16) {
+        // Print offset
+        printf("%04zx: ", i);
+
+        // Print hex bytes
+        for (size_t j = 0; j < 16; j++) {
+            if (i + j < size) {
+                printf("%02x ", ptr[i + j]);
+            } else {
+                printf("   "); // padding for the last line if less than 16 bytes
+            }
+        }
+
+        // Print character representation
+        printf(" |");
+        for (size_t j = 0; j < 16; j++) {
+            if (i + j < size) {
+                unsigned char c = ptr[i + j];
+                if (isprint(c)) {
+                    printf("%c", c);
+                } else {
+                    printf(".");
+                }
+            } else {
+                printf(" ");
+            }
+        }
+        printf("|\n");
+    }
+}
+
 // Function to process each received packet
-struct xdp_md *create_xdp_struct(unsigned char *buffer, int buflen) {
+struct xdp_md *create_xdp_struct(unsigned char *buffer, int buflen, int src_ifindex) {
 
     struct xdp_md *xdp = (struct xdp_md *)malloc(sizeof(struct xdp_md));
     if (xdp == NULL) {
@@ -46,27 +86,57 @@ struct xdp_md *create_xdp_struct(unsigned char *buffer, int buflen) {
 
     // Ingress interface and queue index would normally come from the NIC,
     // here we mock these values
-    xdp->ingress_ifindex = 0;  // This would be populated based on the NIC
+    xdp->ingress_ifindex = src_ifindex;  // This would be populated based on the NIC
     xdp->rx_queue_index = 0;   // Assuming single queue
 
     // Since it's userspace, egress_ifindex isn't relevant, set to 0
     xdp->egress_ifindex = 0;
 
     // Print the data pointers for demonstration
-    printf("Packet processed:\n");
-    printf("  Data: %u\n", xdp->data);
-    printf("  Data End: %u\n", xdp->data_end);
-    printf("  Data Length: %u\n", xdp->data_end - xdp->data);
-
-    printf("here\n");
+//    printf("Packet processed:\n");
+//    printf("  Data: %u\n", xdp->data);
+//    printf("  Data End: %u\n", xdp->data_end);
+//    printf("  Data Length: %u\n", xdp->data_end - xdp->data);
 
     return xdp;
 }
 
-int main() {
+uint64_t _bpf_helper_ext_0006(uint64_t fmt, uint64_t fmt_size, ...)
+{
+    const char *fmt_str = (const char *)fmt;
+    va_list args;
+    va_start(args, fmt_str);
+
+    long ret = vprintf(fmt_str, args);
+    va_end(args);
+    return 0;
+}
+
+int main(int argc, char **argv) {
 
     int sockfd, err;
     struct ifreq ifr;
+    char *ifname;
+
+    // Check if the interface name is provided as a command-line argument
+    if (argc < 2) {
+        fprintf(stderr, "Usage: %s <interface-name>\n", argv[0]);
+        err = -1;
+        goto return_err;
+    }
+
+    ifname = argv[1];
+
+    // Get the interface index of the desired interface
+    int ifindex = if_nametoindex(ifname);
+    if (ifindex == 0) {
+        perror("if_nametoindex");
+        err = -1;
+        goto return_err;
+    }
+
+    printf("IFINDEX: %d\n", ifindex);
+
     unsigned char *buffer = (unsigned char *)malloc(65536);
 
     struct sockaddr saddr;
@@ -82,13 +152,25 @@ int main() {
         goto return_err;
     }
 
-    // Set the network interface to promiscuous mode
-    strncpy(ifr.ifr_name, "ens160", IFNAMSIZ-1);
+    // Set the network interface to promiscuous mode using the interface index
+    memset(&ifr, 0, sizeof(ifr));
+    ifr.ifr_ifindex = ifindex;
+
+    // Populate ifr_name using the ifr_ifindex
+    if (ioctl(sockfd, SIOCGIFNAME, &ifr) == -1) {
+        perror("Error getting interface name");
+        err = 1;
+        goto close_sock;
+    }
+
+    // Now use the ifr_name to get the flags
     if (ioctl(sockfd, SIOCGIFFLAGS, &ifr) == -1) {
         perror("Error getting interface flags");
         err = 1;
         goto close_sock;
     }
+
+    // Set the interface to promiscuous mode
     ifr.ifr_flags |= IFF_PROMISC;
     if (ioctl(sockfd, SIOCSIFFLAGS, &ifr) == -1) {
         perror("Error setting promiscuous mode");
@@ -99,6 +181,9 @@ int main() {
     // Listen and process packets
     printf("Start listening...\n");
     while (1) {
+
+        printf("\n\n ====================================\n");
+
         int buflen = recvfrom(sockfd, buffer, 65536, 0, &saddr, (socklen_t *)&saddr_len);
         if (buflen < 0) {
             perror("Recvfrom Error");
@@ -106,10 +191,18 @@ int main() {
         }
 
         // Create xdp struct
-        xdp = create_xdp_struct(buffer, buflen);
-        printf("created xdp structure from sock buffer");
+        xdp = create_xdp_struct(buffer, buflen, ifindex);
+        printf("created xdp structure from sock buffer\n");
 
-        bpf_main(&xdp, sizeof(xdp));
+        int res = bpf_main(&xdp, sizeof(xdp));
+
+        if (res == 2) {
+            printf("XDP_PASS\n");
+        } else if (res == 1) {
+            printf("XDP_DROP\n");
+        }
+
+        hexdump_xdp_md(xdp);
 
         free(xdp);
     }
@@ -125,3 +218,4 @@ close_sock:
 return_err:
     return err;
 }
+

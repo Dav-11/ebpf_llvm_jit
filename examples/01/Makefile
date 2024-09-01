@@ -38,9 +38,9 @@ endif
 
 APPS := $(OUTPUT)/main
 MAIN_FILES := main.c \
-	../../src/include/helpers_impl.c \
 	../../src/include/helpers_impl.h \
 	$(OUTPUT)/hello_world.o
+	#../../src/include/helpers_impl.c \
 
 ####
 # TARGETS
