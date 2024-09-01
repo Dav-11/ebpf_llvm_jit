@@ -111,7 +111,7 @@ void context::do_jit_compile()
     this->jit = std::move(jit);
 }
 
-ebpf_llvm_jit::helpers::precompiled_ebpf_function context::compile() {
+ebpf_llvm_jit::utils::precompiled_ebpf_function context::compile() {
 
     spin_lock_guard guard(compiling.get());
     if (!this->jit.has_value()) {
@@ -358,7 +358,7 @@ context::create_and_initialize_lljit_instance()
     return { std::move(jit), extFuncNames, definedLddwHelpers };
 }
 
-ebpf_llvm_jit::helpers::precompiled_ebpf_function
+ebpf_llvm_jit::utils::precompiled_ebpf_function
 context::get_entry_address()
 {
     if (!this->jit.has_value()) {
@@ -373,7 +373,7 @@ context::get_entry_address()
         SPDLOG_CRITICAL("Unable to find symbol `bpf_main`: {}", buf);
         throw std::runtime_error("Unable to link symbol `bpf_main`");
     } else {
-        auto addr = err->toPtr<ebpf_llvm_jit::helpers::precompiled_ebpf_function>();
+        auto addr = err->toPtr<ebpf_llvm_jit::utils::precompiled_ebpf_function>();
         SPDLOG_DEBUG("LLVM-JIT: Entry func is {:x}", (uintptr_t)addr);
         return addr;
     }

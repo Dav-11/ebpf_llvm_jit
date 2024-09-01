@@ -5,7 +5,6 @@
 #include "vm.h"
 #include "context.h"
 #include "spdlog/spdlog.h"
-#include "../helpers/helper.h"
 #include <cerrno>
 
 using namespace ebpf_llvm_jit::jit;
@@ -95,7 +94,7 @@ std::vector<uint8_t> vm::do_aot_compile(bool print_ir)
     return this->jit_ctx->do_aot_compile(print_ir);
 }
 
-std::optional<ebpf_llvm_jit::helpers::precompiled_ebpf_function>
+std::optional<ebpf_llvm_jit::utils::precompiled_ebpf_function>
 vm::compile()
 {
     auto func = jit_ctx->compile();
@@ -103,7 +102,7 @@ vm::compile()
     return func;
 }
 
-std::optional<ebpf_llvm_jit::helpers::precompiled_ebpf_function>
+std::optional<ebpf_llvm_jit::utils::precompiled_ebpf_function>
 vm::load_aot_object(const std::vector<uint8_t> &object)
 {
     if (jitted_function) {
