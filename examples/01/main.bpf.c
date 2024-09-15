@@ -1,10 +1,10 @@
-#include "vmlinux.h"
+#include <linux/bpf.h>
 #include <bpf/bpf_helpers.h>
-#include <bpf/bpf_tracing.h>
-#include <bpf/bpf_core_read.h>
+#include <stddef.h>
+#include <linux/if_ether.h>
+#include <linux/ip.h>
 #include <bpf/bpf_endian.h>
-
-#define ETH_P_ARP 0x0806
+#include <stdint.h>
 
 struct data_t {
     void *data_end;
@@ -12,19 +12,37 @@ struct data_t {
     void *pos;
 };
 
-struct ethhdr *get_ethhdr_arp(struct data_t *data) {
+static __always_inline int parse_ethhdr(struct data_t *data, struct ethhdr *eth) {
 
     if (data->pos + sizeof(struct ethhdr) > data->data_end) {
-        return NULL;
+        return -1;
     }
 
-    struct ethhdr *eth = data->pos;
-
-    // Increment position to next header
+    eth = (struct ethhdr *)data->pos;
     data->pos += sizeof(struct ethhdr);
 
-    return eth;
+    return eth->h_proto;
 }
+
+//static __always_inline int parse_iphdr(struct data_t *data, struct iphdr *ip) {
+//
+//    if (data->pos + sizeof(struct iphdr) > data->data_end) {
+//        return -1;
+//    }
+//
+//    ip = (struct iphdr *)data->pos;
+//    int hdr_size = ip->ihl * 4;
+//
+//    if (hdr_size < sizeof(*ip))
+//        return -1;
+//
+//    if ((void *)ip + hdr_size > data->data_end)
+//        return -1;
+//
+//    data->pos += hdr_size;
+//
+//    return ip->protocol;
+//}
 
 SEC("xdp")
 int hello_world(struct xdp_md *ctx) {
@@ -32,19 +50,21 @@ int hello_world(struct xdp_md *ctx) {
     bpf_printk("Hello World from");
 
     struct data_t data;
+    struct ethhdr eth;
+    int h_proto;
+
     data.data = (void *)(long)ctx->data;
     data.data_end = (void *)(long)ctx->data_end;
     data.pos = data.data;
 
-    struct ethhdr *eth = get_ethhdr_arp(&data);
-    if (!eth) {
+    h_proto = parse_ethhdr(&data, &eth);
+    if (h_proto < 0) {
         return XDP_DROP;
     }
 
-    if (bpf_ntohs(eth->h_proto) != ETH_P_ARP) {
-        return XDP_DROP;
+    if (eth.h_proto != bpf_htons(ETH_P_IP)) {
+        return XDP_PASS;
     }
-
 
     return XDP_PASS;
 }

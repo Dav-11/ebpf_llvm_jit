@@ -112,6 +112,29 @@ uint64_t _bpf_helper_ext_0006(uint64_t fmt, uint64_t fmt_size, ...)
     return 0;
 }
 
+void print_addresses(unsigned char *buffer)
+{
+    // Extract Ethernet header (first 14 bytes)
+    struct ether_header *eth = (struct ether_header *)buffer;
+
+    // Check if the packet is IP (ETH_P_IP for IPv4)
+    if (ntohs(eth->ether_type) == ETHERTYPE_IP) {
+        // Move the pointer to the start of the IP header (after the Ethernet header)
+        struct iphdr *ip = (struct iphdr *)(buffer + sizeof(struct ether_header));
+
+        // Get the source IP address from the IP header
+        struct in_addr src_addr, dst_addr;
+        src_addr.s_addr = ip->saddr;
+        dst_addr.s_addr = ip->daddr;
+
+        // Convert the source IP address to a readable format and print it
+//        printf("[SRC: %s", inet_ntoa(src_addr));
+//        printf("DST: %s]\n", inet_ntoa(dst_addr));
+    } else {
+        printf("Not an IP packet\n");
+    }
+}
+
 int main(int argc, char **argv) {
 
     int sockfd, err;
@@ -182,7 +205,7 @@ int main(int argc, char **argv) {
     printf("Start listening...\n");
     while (1) {
 
-        printf("\n\n ====================================\n");
+        //printf("\n\n ====================================\n");
 
         int buflen = recvfrom(sockfd, buffer, 65536, 0, &saddr, (socklen_t *)&saddr_len);
         if (buflen < 0) {
@@ -190,19 +213,25 @@ int main(int argc, char **argv) {
             break;
         }
 
+        // Print source IP address
+        print_addresses(buffer);
+
         // Create xdp struct
         xdp = create_xdp_struct(buffer, buflen, ifindex);
-        printf("created xdp structure from sock buffer\n");
+        //printf("created xdp structure from sock buffer\n");
 
         int res = bpf_main(&xdp, sizeof(xdp));
 
+        printf("RES: %d\n", res);
+
         if (res == 2) {
-            printf("XDP_PASS\n");
+            // printf("XDP_PASS\n");
         } else if (res == 1) {
+            printf("\n\n ====================================\n");
             printf("XDP_DROP\n");
+            hexdump_xdp_md(xdp);
         }
 
-        hexdump_xdp_md(xdp);
 
         free(xdp);
     }

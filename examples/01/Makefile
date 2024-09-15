@@ -83,14 +83,11 @@ $(OUTPUT)/%.bpf.o: %.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX_H) | $(OUTPUT
 	$(Q) clang -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(Q) $(LLVM_STRIP) -g $@ # strip useless DWARF info
 
+# build local
+
 $(OUTPUT)/hello_world.host.o: $(OUTPUT)/main.bpf.o
 	$(call msg,BPF,$@)
 	$(Q) $(EBPF_LLVM_JIT) build $(OUTPUT)/main.bpf.o -o $(OUTPUT)
-	$(Q) mv $(OUTPUT)/hello_world.o $@
-
-$(OUTPUT)/hello_world.rv64.o: $(OUTPUT)/main.bpf.o
-	$(call msg,BPF,$@)
-	$(Q) $(EBPF_LLVM_JIT) buildrv $(OUTPUT)/main.bpf.o -o $(OUTPUT)
 	$(Q) mv $(OUTPUT)/hello_world.o $@
 
 $(OUTPUT)/main: main.c $(OUTPUT)/hello_world.host.o
@@ -98,7 +95,30 @@ $(OUTPUT)/main: main.c $(OUTPUT)/hello_world.host.o
 	clang -Xlinker --export-dynamic -O2 -flto $(MAIN_FILES)
 	mv a.out $@
 
+# xbuild RV64
+
+$(OUTPUT)/hello_world.rv64.o: $(OUTPUT)/main.bpf.o
+	$(call msg,BPF,$@)
+	$(Q) $(EBPF_LLVM_JIT) buildrv $(OUTPUT)/main.bpf.o -o $(OUTPUT)
+	$(Q) mv $(OUTPUT)/hello_world.o $@
+
 $(OUTPUT)/main_rv: main.c $(OUTPUT)/hello_world.host.o
 	$(call msg,CLANG,$@)
 	$(CC_RV) -march=rv64g -mabi=lp64 -Xlinker --export-dynamic -O2 -flto $(RV_FILES)
 	mv a.out $@
+
+clean-apps:
+	$(call msg,RM, $(OUTPUT)/hello_world.rv64.o)
+	$(Q) rm -f $(OUTPUT)/hello_world.rv64.o
+	$(call msg,RM, $(OUTPUT)/main_rv)
+	$(Q) rm -f $(OUTPUT)/main_rv
+	$(call msg,RM, $(OUTPUT)/hello_world.host.o)
+	$(Q) rm -f $(OUTPUT)/hello_world.host.o
+	$(call msg,RM, $(OUTPUT)/main)
+	$(Q) rm -f $(OUTPUT)/main
+	$(call msg,RM, $(OUTPUT)/main.bpf.o)
+	$(Q) rm -f $(OUTPUT)/main.bpf.o
+
+clean:
+	$(call msg,RM, $(OUTPUT))
+	$(Q) rm -f $(OUTPUT)
