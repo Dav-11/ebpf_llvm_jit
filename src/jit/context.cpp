@@ -145,9 +145,14 @@ std::vector<uint8_t> context::do_aot_compile(
         LLVMInitializeAllAsmPrinters();
 
         auto defaultTargetTriple = llvm::sys::getDefaultTargetTriple();
+        // Define CPU and features with hardware FPU
+        std::string cpu = "generic";
+        std::string features;
 
         if (riscv) {
             defaultTargetTriple = "riscv64-unknown-linux-gnu";
+            cpu = "generic"; // or a specific RISC-V CPU like 'rocket'
+            features = "+f,+d";
         }
 
         SPDLOG_INFO("AOT: target triple: {}", defaultTargetTriple);
@@ -156,11 +161,16 @@ std::vector<uint8_t> context::do_aot_compile(
             if (print_ir) {
                 module.print(llvm::errs(), nullptr);
             }
+
             //optimizeModule(module);
+
+            // Set the target triple for the module
             module.setTargetTriple(defaultTargetTriple);
+
             std::string error;
             auto target = llvm::TargetRegistry::lookupTarget(
                     defaultTargetTriple, error);
+
             if (!target) {
                 SPDLOG_ERROR(
                         "AOT: Failed to get local target: {}",
@@ -168,9 +178,11 @@ std::vector<uint8_t> context::do_aot_compile(
                 throw std::runtime_error(
                         "Unable to get local target");
             }
-            auto targetMachine = target->createTargetMachine(
-                    defaultTargetTriple, "generic", "",
-                    llvm::TargetOptions(), llvm::Reloc::PIC_);
+
+            // Create target machine with hardware floating-point support (RV64G with FD extensions)
+            llvm::TargetMachine *targetMachine = target->createTargetMachine(
+                    defaultTargetTriple, cpu, features, llvm::TargetOptions(), llvm::Reloc::PIC_);
+
             if (!targetMachine) {
                 SPDLOG_ERROR("Unable to create target machine");
                 throw std::runtime_error(

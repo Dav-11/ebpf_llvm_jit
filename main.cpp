@@ -93,6 +93,7 @@ int main(int argc, const char **argv)
 
     argparse::ArgumentParser program(argv[0]);
     argparse::ArgumentParser build_command("build");
+    argparse::ArgumentParser buildrv_command("buildrv");
 
     build_command.add_description(
             "Build native ELF(s) from eBPF ELF. Each program in the eBPF ELF will be built into a single native ELF");
@@ -101,9 +102,14 @@ int main(int argc, const char **argv)
             .help("Output directory (There might be multiple output files for a single input)");
     build_command.add_argument("EBPF_ELF")
             .help("Path to an eBPF ELF executable");
-    build_command.add_argument("-rv", "--riscv_enabled")
-            .default_value(false)
-            .help("If true, xcompiles to riscv");
+
+    buildrv_command.add_description(
+            "Build native ELF(s) from eBPF ELF. Each program in the eBPF ELF will be built into a single native ELF");
+    buildrv_command.add_argument("-o", "--output")
+            .default_value(".")
+            .help("Output directory (There might be multiple output files for a single input)");
+    buildrv_command.add_argument("EBPF_ELF")
+            .help("Path to an eBPF ELF executable");
 
 //    argparse::ArgumentParser run_command("run");
 //    run_command.add_description("Run an native eBPF program");
@@ -113,6 +119,7 @@ int main(int argc, const char **argv)
 //            .nargs(0, 1);
 
     program.add_subparser(build_command);
+    program.add_subparser(buildrv_command);
 //    program.add_subparser(run_command);
 
     try {
@@ -131,7 +138,12 @@ int main(int argc, const char **argv)
         return build_ebpf_program(
                 build_command.get<std::string>("EBPF_ELF"),
                 build_command.get<std::string>("output"),
-                build_command.get<bool>("riscv_enabled"));
+                false);
+    } else if (program.is_subcommand_used(buildrv_command)) {
+        return build_ebpf_program(
+                buildrv_command.get<std::string>("EBPF_ELF"),
+                buildrv_command.get<std::string>("output"),
+                true);
     }
 
 

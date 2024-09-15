@@ -4,6 +4,7 @@ ARCH := $(shell uname -m | sed 's/x86_64/x86/' | sed 's/aarch64/arm64/' | sed 's
 LLVM_STRIP ?= llvm-strip
 
 EBPF_LLVM_JIT := ../../cmake-build-debug/ebpf_llvm_jit
+CC_RV := riscv64-unknown-linux-gnu-gcc
 
 # Source directories
 LIBBPF_SRC := $(abspath ../third_party/bpftool/libbpf/src)
@@ -39,8 +40,12 @@ endif
 APPS := $(OUTPUT)/main
 MAIN_FILES := main.c \
 	../../src/include/helpers_impl.h \
-	$(OUTPUT)/hello_world.o
-	#../../src/include/helpers_impl.c \
+	$(OUTPUT)/hello_world.host.o
+
+RV_FILES := main.c \
+	../../src/include/helpers_impl.h \
+	$(OUTPUT)/hello_world.rv64.o
+
 
 ####
 # TARGETS
@@ -78,11 +83,22 @@ $(OUTPUT)/%.bpf.o: %.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX_H) | $(OUTPUT
 	$(Q) clang -g -O2 -target bpf -D__TARGET_ARCH_$(ARCH) $(INCLUDES) $(CLANG_BPF_SYS_INCLUDES) -c $(filter %.c,$^) -o $@
 	$(Q) $(LLVM_STRIP) -g $@ # strip useless DWARF info
 
-$(OUTPUT)/hello_world.o: $(OUTPUT)/main.bpf.o
+$(OUTPUT)/hello_world.host.o: $(OUTPUT)/main.bpf.o
 	$(call msg,BPF,$@)
 	$(Q) $(EBPF_LLVM_JIT) build $(OUTPUT)/main.bpf.o -o $(OUTPUT)
+	$(Q) mv $(OUTPUT)/hello_world.o $@
 
-$(OUTPUT)/main: main.c $(OUTPUT)/hello_world.o
+$(OUTPUT)/hello_world.rv64.o: $(OUTPUT)/main.bpf.o
+	$(call msg,BPF,$@)
+	$(Q) $(EBPF_LLVM_JIT) buildrv $(OUTPUT)/main.bpf.o -o $(OUTPUT)
+	$(Q) mv $(OUTPUT)/hello_world.o $@
+
+$(OUTPUT)/main: main.c $(OUTPUT)/hello_world.host.o
 	$(call msg,CLANG,$@)
 	clang -Xlinker --export-dynamic -O2 -flto $(MAIN_FILES)
+	mv a.out $@
+
+$(OUTPUT)/main_rv: main.c $(OUTPUT)/hello_world.host.o
+	$(call msg,CLANG,$@)
+	$(CC_RV) -march=rv64g -mabi=lp64 -Xlinker --export-dynamic -O2 -flto $(RV_FILES)
 	mv a.out $@
