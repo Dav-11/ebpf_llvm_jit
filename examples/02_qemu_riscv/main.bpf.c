@@ -42,7 +42,9 @@ int hello_world(struct xdp_md *ctx) {
         return XDP_DROP;
     }
 
-    if (eth.h_proto != bpf_htons(ETH_P_IP)) {
+    bpf_printk("h_proto: %d", h_proto);
+
+    if (h_proto != bpf_htons(ETH_P_IP)) {
         return XDP_PASS;
     }
 
