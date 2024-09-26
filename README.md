@@ -12,6 +12,21 @@ This project can be compiled only on linux systems due to the need of libbpf.
 - cmake
 - g++
 - gcc
+- pkgconf
+
+> If running on debian/ubuntu there is a script
+```shell
+.devcontainer/debian.sh -h
+```
+```
+Usage: .devcontainer/debian.sh [OPTION]
+Install main dependencies for your project.
+
+Options:
+  -a         Install both main and QEMU dependencies.
+  -q         Install only QEMU dependencies.
+  -h         Display this help message.
+```
 
 ### Procedure
 To compile the project use cmake:
