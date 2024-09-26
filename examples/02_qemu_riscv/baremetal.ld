@@ -66,7 +66,7 @@ SECTIONS
         LONG(0xedf3);
         LONG(0xa990);
         LONG(0x2caa);
-        LONG(0x8010);
+        LONG(0x8010); /*TODO: finish */
 
         /*
             15:48:50.194311 IP 192.168.2.244.34531 > dns.google.domain: 22582+ PTR? 185.2.168.192.in-addr.arpa. (44)
