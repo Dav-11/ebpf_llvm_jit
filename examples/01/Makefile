@@ -84,7 +84,6 @@ $(OUTPUT)/%.bpf.o: %.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) $(VMLINUX_H) | $(OUTPUT
 	$(Q) $(LLVM_STRIP) -g $@ # strip useless DWARF info
 
 # build local
-
 $(OUTPUT)/hello_world.host.o: $(OUTPUT)/main.bpf.o
 	$(call msg,BPF,$@)
 	$(Q) $(EBPF_LLVM_JIT) build $(OUTPUT)/main.bpf.o -o $(OUTPUT)
@@ -96,7 +95,6 @@ $(OUTPUT)/main: main.c $(OUTPUT)/hello_world.host.o
 	mv a.out $@
 
 # xbuild RV64
-
 $(OUTPUT)/hello_world.rv64.o: $(OUTPUT)/main.bpf.o
 	$(call msg,BPF,$@)
 	$(Q) $(EBPF_LLVM_JIT) buildrv $(OUTPUT)/main.bpf.o -o $(OUTPUT)
