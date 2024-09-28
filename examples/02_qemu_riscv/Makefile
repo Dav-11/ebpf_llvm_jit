@@ -68,7 +68,7 @@ $(OUTPUT)/main.bpf.o: main.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) | $(OUTPUT)
 
 $(OUTPUT)/hello_world.rv64.o: $(OUTPUT)/main.bpf.o
 	$(call msg,BPF,$@)
-	$(Q) $(EBPF_LLVM_JIT) build $(OUTPUT)/main.bpf.o -o $(OUTPUT) --cpu generic-rv32 --target riscv32-unknown-elf --features "+m,+soft-float"
+	$(Q) $(EBPF_LLVM_JIT) build $(OUTPUT)/main.bpf.o -o $(OUTPUT) --cpu generic-rv32 --target riscv32-unknown-elf --features "+m"
 	$(Q) mv $(OUTPUT)/hello_world.o $@
 
 $(OUTPUT)/main.o: main.c qemu_rv_uart.h
