@@ -14,12 +14,13 @@ struct data_t {
 
 static __always_inline int parse_ethhdr(struct data_t *data, struct ethhdr *eth) {
 
-    if (data->pos + sizeof(struct ethhdr) > data->data_end) {
+    eth = (struct ethhdr *)data->pos;
+
+    if (data->pos + sizeof(eth) > data->data_end) {
         return -1;
     }
 
-    eth = (struct ethhdr *)data->pos;
-    data->pos += sizeof(struct ethhdr);
+    data->pos += sizeof(eth);
 
     return eth->h_proto;
 }

@@ -129,10 +129,12 @@ context::~context()
 }
 
 std::vector<uint8_t> context::do_aot_compile(
-        const std::vector<std::string> &extFuncNames,
-        const std::vector<std::string> &lddwHelpers,
-        bool print_ir,
-        bool riscv)
+            const std::vector<std::string> &extFuncNames,
+            const std::vector<std::string> &lddwHelpers,
+            bool print_ir,
+            std::string cpu,
+            std::string cpu_features,
+            std::string target_triple)
 {
     SPDLOG_INFO("AOT: start");
     if (auto module = generateModule(extFuncNames, lddwHelpers, false);
@@ -146,14 +148,16 @@ std::vector<uint8_t> context::do_aot_compile(
 
         auto defaultTargetTriple = llvm::sys::getDefaultTargetTriple();
         // Define CPU and features with hardware FPU
-        std::string cpu = "generic";
-        std::string features;
 
-        if (riscv) {
-            defaultTargetTriple = "riscv64-unknown-linux-gnu";
-            cpu = "generic"; // or a specific RISC-V CPU like 'rocket'
-            features = "+f,+d";
+        if ((target_triple != "default") && (target_triple != "")) {
+            defaultTargetTriple = target_triple;
         }
+
+        // if (false) {
+        //     defaultTargetTriple = "riscv32-unknown-elf";
+        //     cpu = "generic-rv32"; // or a specific RISC-V CPU like 'rocket'
+        //     features = "+m,+soft-float";
+        // }
 
         SPDLOG_INFO("AOT: target triple: {}", defaultTargetTriple);
         return module->withModuleDo([&](auto &module)
@@ -162,6 +166,7 @@ std::vector<uint8_t> context::do_aot_compile(
                 module.print(llvm::errs(), nullptr);
             }
 
+            // disabled otherwise it would eliminate calls to helpers
             //optimizeModule(module);
 
             // Set the target triple for the module
@@ -181,7 +186,9 @@ std::vector<uint8_t> context::do_aot_compile(
 
             // Create target machine with hardware floating-point support (RV64G with FD extensions)
             llvm::TargetMachine *targetMachine = target->createTargetMachine(
-                    defaultTargetTriple, cpu, features, llvm::TargetOptions(), llvm::Reloc::PIC_);
+                    defaultTargetTriple, cpu, cpu_features, llvm::TargetOptions(), llvm::Reloc::PIC_);
+
+            SPDLOG_INFO("Creating LLVM target machine using [target_machine={}, cpu={}, features={}]", defaultTargetTriple, cpu, cpu_features);
 
             if (!targetMachine) {
                 SPDLOG_ERROR("Unable to create target machine");
@@ -235,7 +242,7 @@ std::vector<uint8_t> context::do_aot_compile(
     }
 }
 
-std::vector<uint8_t> context::do_aot_compile(bool print_ir, bool riscv)
+std::vector<uint8_t> context::do_aot_compile(bool print_ir, const std::string cpu, const std::string cpu_features, const std::string target_triple)
 {
     std::vector<std::string> extNames, lddwNames;
 
@@ -264,12 +271,14 @@ std::vector<uint8_t> context::do_aot_compile(bool print_ir, bool riscv)
     };
     // Only map_val will have a chance to be called at runtime
     tryDefineLddwHelper(LDDW_HELPER_MAP_VAL, (void *)vm->map_val);
+
     // These symbols won't be used at runtime
     // tryDefineLddwHelper(LDDW_HELPER_MAP_BY_FD, (void *)vm->map_by_fd);
     // tryDefineLddwHelper(LDDW_HELPER_MAP_BY_IDX, (void *)vm->map_by_idx);
     // tryDefineLddwHelper(LDDW_HELPER_CODE_ADDR, (void *)vm->code_addr);
     // tryDefineLddwHelper(LDDW_HELPER_VAR_ADDR, (void *)vm->var_addr);
-    return this->do_aot_compile(extNames, lddwNames, print_ir, riscv);
+
+    return this->do_aot_compile(extNames, lddwNames, print_ir, cpu, cpu_features, target_triple);
 }
 
 void context::load_aot_object(const std::vector<uint8_t> &buf)

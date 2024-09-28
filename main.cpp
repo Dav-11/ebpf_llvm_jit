@@ -30,7 +30,10 @@ static int add_helpers(ebpf_llvm_jit::jit::vm *vm) {
 }
 
 static int build_ebpf_program(const std::string &ebpf_elf,
-                              const std::filesystem::path &output, bool to_riscv)
+                              const std::filesystem::path &output,
+                              const std::string cpu,
+                              const std::string cpu_features,
+                              const std::string target_triple)
 {
     bpf_object *obj = bpf_object__open(ebpf_elf.c_str());
     if (!obj) {
@@ -66,7 +69,7 @@ static int build_ebpf_program(const std::string &ebpf_elf,
         ebpf_llvm_jit::jit::context ctx(&vm);
 
         // write result to file
-        auto result = ctx.do_aot_compile(true, to_riscv);
+        auto result = ctx.do_aot_compile(true, cpu, cpu_features, target_triple);
         auto out_path = output / (std::string(name) + ".o");
         std::ofstream ofs(out_path, std::ios::binary);
         ofs.write((const char *)result.data(), result.size());
@@ -87,40 +90,27 @@ int main(int argc, const char **argv)
     spdlog::set_level(spdlog::level::trace);
 
 
-//    ????????
-//    InitializeNativeTarget();
-//    InitializeNativeTargetAsmPrinter();
-
     argparse::ArgumentParser program(argv[0]);
     argparse::ArgumentParser build_command("build");
-    argparse::ArgumentParser buildrv_command("buildrv");
 
     build_command.add_description(
             "Build native ELF(s) from eBPF ELF. Each program in the eBPF ELF will be built into a single native ELF");
     build_command.add_argument("-o", "--output")
             .default_value(".")
             .help("Output directory (There might be multiple output files for a single input)");
+    build_command.add_argument("-c","--cpu")
+            .default_value("generic")
+            .help("Value for LLVM target machine cpu");
+    build_command.add_argument("-f", "--features")
+            .default_value("")
+            .help("Value for LLVM target machine");
+    build_command.add_argument("--target")
+            .default_value("default")
+            .help("Value for LLVM target machine target-triple");
     build_command.add_argument("EBPF_ELF")
             .help("Path to an eBPF ELF executable");
 
-    buildrv_command.add_description(
-            "Build native ELF(s) from eBPF ELF. Each program in the eBPF ELF will be built into a single native ELF");
-    buildrv_command.add_argument("-o", "--output")
-            .default_value(".")
-            .help("Output directory (There might be multiple output files for a single input)");
-    buildrv_command.add_argument("EBPF_ELF")
-            .help("Path to an eBPF ELF executable");
-
-//    argparse::ArgumentParser run_command("run");
-//    run_command.add_description("Run an native eBPF program");
-//    run_command.add_argument("PATH").help("Path to the ELF file");
-//    run_command.add_argument("MEMORY")
-//            .help("Path to the memory file")
-//            .nargs(0, 1);
-
     program.add_subparser(build_command);
-    program.add_subparser(buildrv_command);
-//    program.add_subparser(run_command);
 
     try {
         program.parse_args(argc, argv);
@@ -138,24 +128,11 @@ int main(int argc, const char **argv)
         return build_ebpf_program(
                 build_command.get<std::string>("EBPF_ELF"),
                 build_command.get<std::string>("output"),
-                false);
-    } else if (program.is_subcommand_used(buildrv_command)) {
-        return build_ebpf_program(
-                buildrv_command.get<std::string>("EBPF_ELF"),
-                buildrv_command.get<std::string>("output"),
-                true);
+                build_command.get<std::string>("cpu"),
+                build_command.get<std::string>("features"),
+                build_command.get<std::string>("target")
+                );
     }
 
-
-//    else if (program.is_subcommand_used(run_command)) {
-//        if (run_command.is_used("MEMORY")) {
-//            return run_ebpf_program(
-//                    run_command.get<std::string>("PATH"),
-//                    run_command.get<std::string>("MEMORY"));
-//        } else {
-//            return run_ebpf_program(
-//                    run_command.get<std::string>("PATH"), {});
-//        }
-//    }
     return 0;
 }

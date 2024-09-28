@@ -3,6 +3,8 @@ LLVM_STRIP ?= llvm-strip
 ARCH := $(shell uname -m | sed 's/x86_64/x86/' | sed 's/aarch64/arm64/' | sed 's/ppc64le/powerpc/' | sed 's/mips.*/mips/')
 EBPF_LLVM_JIT := ../../cmake-build-debug/ebpf_llvm_jit
 
+EBPF_LLVM_JIT := ../../cmake-build-debug/ebpf_llvm_jit
+
 # Source directories
 LIBBPF_SRC := $(abspath ../third_party/bpftool/libbpf/src)
 BPFTOOL_SRC := $(abspath ../third_party/bpftool/src)
@@ -14,10 +16,11 @@ LIBBPF_PKGCONFIG := $(abspath $(OUTPUT)/pkgconfig)
 BPFTOOL_OUTPUT ?= $(abspath $(OUTPUT)/bpftool)
 BPFTOOL ?= $(BPFTOOL_OUTPUT)/bootstrap/bpftool
 
-ARCH_ARGS := "-march=rv32im -mabi=ilp32 "
-#ARCH_ARGS := "-march=rv64g -mabi=lp64"
-
-GCC_ARGS :="-c -g -O0 -ffreestanding -mcmodel=medany $(ARCH_ARGS)"
+# Compiler and linker options
+INCLUDES := -I$(OUTPUT) -I../libs/libbpf/include/uapi
+CFLAGS := -g -Wall -DLOG_USE_COLOR
+ALL_LDFLAGS := $(LDFLAGS) $(EXTRA_LDFLAGS)
+ALL_LDFLAGS += -lrt -ldl -lpthread -lm
 
 # hide output unless V=1
 ifeq ($(V),1)
@@ -65,7 +68,7 @@ $(OUTPUT)/main.bpf.o: main.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) | $(OUTPUT)
 
 $(OUTPUT)/hello_world.rv64.o: $(OUTPUT)/main.bpf.o
 	$(call msg,BPF,$@)
-	$(Q) $(EBPF_LLVM_JIT) buildrv $(OUTPUT)/main.bpf.o -o $(OUTPUT)
+	$(Q) $(EBPF_LLVM_JIT) build $(OUTPUT)/main.bpf.o -o $(OUTPUT) --cpu generic-rv32 --target riscv32-unknown-elf --features "+m,+soft-float"
 	$(Q) mv $(OUTPUT)/hello_world.o $@
 
 $(OUTPUT)/main.o: main.c qemu_rv_uart.h
@@ -84,9 +87,9 @@ $(OUTPUT)/bpf_helpers.o: bpf_helpers.c bpf_helpers.h
 	$(call msg,GCC,$@)
 	$(Q) riscv64-unknown-elf-gcc -c -g -O0 -ffreestanding -mcmodel=medany -march=rv32im -mabi=ilp32 -o "$@" bpf_helpers.c
 
-$(OUTPUT)/hello.elf: $(OUTPUT) $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_helpers.o baremetal.ld #$(OUTPUT)/hello_world.rv64.o
+$(OUTPUT)/hello.elf: $(OUTPUT) $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_helpers.o baremetal.ld $(OUTPUT)/hello_world.rv64.o
 	$(call msg,LD,$@)
-	$(Q) riscv64-unknown-elf-ld -T baremetal.ld -m elf32lriscv -o "$@" $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_helpers.o #$(OUTPUT)/hello_world.rv64.o
+	$(Q) riscv64-unknown-elf-ld -T baremetal.ld -m elf32lriscv -o "$@" $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_helpers.o $(OUTPUT)/hello_world.rv64.o
 
 run: $(OUTPUT)/hello.elf
 	@echo "Ctrl-A C for QEMU console, then quit to exit"

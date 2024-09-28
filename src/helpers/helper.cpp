@@ -32,7 +32,7 @@ void *ebpf_llvm_jit::helpers::helper::getFn() const {
 }
 
 // bpf_printk
-uint64_t _bpf_helper_ext_0006(uint64_t fmt, uint64_t fmt_size, ...)
+uint64_t _bpf_helper_ext_0006(void *fmt, uint64_t fmt_size, ...)
 {
     const char *fmt_str = (const char *)fmt;
     va_list args;
