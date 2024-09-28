@@ -25,6 +25,8 @@ void uart_puts(const char *str);
 
 void reverse_string(char str[], int length);
 void itoa(int n, char s[]);
-void hextoa(uint64_t n, char* buffer);
+void hextoa(uint32_t n, char* buffer, int fixed_size);
+char *strcpy(char *dest, const char *src);
+int printf(const char *fmt, uint64_t fmt_size, ...);
 
 #endif //BAREMETAL_RV_QEMU_RV_UART_H

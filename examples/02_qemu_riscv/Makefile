@@ -14,6 +14,11 @@ LIBBPF_PKGCONFIG := $(abspath $(OUTPUT)/pkgconfig)
 BPFTOOL_OUTPUT ?= $(abspath $(OUTPUT)/bpftool)
 BPFTOOL ?= $(BPFTOOL_OUTPUT)/bootstrap/bpftool
 
+ARCH_ARGS := "-march=rv32im -mabi=ilp32 "
+#ARCH_ARGS := "-march=rv64g -mabi=lp64"
+
+GCC_ARGS :="-c -g -O0 -ffreestanding -mcmodel=medany $(ARCH_ARGS)"
+
 # hide output unless V=1
 ifeq ($(V),1)
 	Q =
@@ -64,23 +69,28 @@ $(OUTPUT)/hello_world.rv64.o: $(OUTPUT)/main.bpf.o
 	$(Q) mv $(OUTPUT)/hello_world.o $@
 
 $(OUTPUT)/main.o: main.c qemu_rv_uart.h
-	riscv64-unknown-elf-gcc -c -g -O0 -ffreestanding -mcmodel=medany -march=rv64g -mabi=lp64 -o "$@" main.c
+	$(call msg,GCC,$@)
+	$(Q) riscv64-unknown-elf-gcc -c -g -O0 -ffreestanding -mcmodel=medany -march=rv32im -mabi=ilp32 -o "$@" main.c
 
 $(OUTPUT)/start.o: start.S
-	riscv64-unknown-elf-as -march=rv64g -mabi=lp64 -o "$@" start.S
+	$(call msg,AS,$@)
+	$(Q) riscv64-unknown-elf-as -march=rv32im -mabi=ilp32 -o "$@" start.S
 
 $(OUTPUT)/qemu_rv_uart.o: qemu_rv_uart.c qemu_rv_uart.h
-	riscv64-unknown-elf-gcc -c -g -O0 -ffreestanding -mcmodel=medany -march=rv64g -mabi=lp64 -o "$@" qemu_rv_uart.c
+	$(call msg,GCC,$@)
+	$(Q) riscv64-unknown-elf-gcc -c -g -O0 -ffreestanding -mcmodel=medany -march=rv32im -mabi=ilp32 -o "$@" qemu_rv_uart.c
 
 $(OUTPUT)/bpf_helpers.o: bpf_helpers.c bpf_helpers.h
-	riscv64-unknown-elf-gcc -c -g -O0 -ffreestanding -mcmodel=medany -march=rv64g -mabi=lp64 -o "$@" bpf_helpers.c
+	$(call msg,GCC,$@)
+	$(Q) riscv64-unknown-elf-gcc -c -g -O0 -ffreestanding -mcmodel=medany -march=rv32im -mabi=ilp32 -o "$@" bpf_helpers.c
 
-$(OUTPUT)/hello.elf: $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_helpers.o $(OUTPUT)/hello_world.rv64.o baremetal.ld
-	riscv64-unknown-elf-ld -T baremetal.ld -m elf64lriscv -o "$@" $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_helpers.o $(OUTPUT)/hello_world.rv64.o
+$(OUTPUT)/hello.elf: $(OUTPUT) $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_helpers.o baremetal.ld #$(OUTPUT)/hello_world.rv64.o
+	$(call msg,LD,$@)
+	$(Q) riscv64-unknown-elf-ld -T baremetal.ld -m elf32lriscv -o "$@" $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_helpers.o #$(OUTPUT)/hello_world.rv64.o
 
 run: $(OUTPUT)/hello.elf
 	@echo "Ctrl-A C for QEMU console, then quit to exit"
-	qemu-system-riscv64 -nographic -serial mon:stdio -machine virt -bios $(OUTPUT)/hello.elf
+	qemu-system-riscv32 -nographic -serial mon:stdio -machine virt -bios $(OUTPUT)/hello.elf
 
 clean:
 	rm -f $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/hello.elf $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/hello_world.rv64.o

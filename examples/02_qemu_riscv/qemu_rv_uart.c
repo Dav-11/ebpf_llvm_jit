@@ -3,6 +3,7 @@
 //
 
 #include "qemu_rv_uart.h"
+#include <stdarg.h>
 
 void uart_putc(char c) {
     while (!UART0_FF_THR_EMPTY);            // Wait until the FIFO holding register is empty
@@ -44,25 +45,40 @@ void itoa(int n, char* buffer)
     reverse_string(buffer, i);
 }
 
-void hextoa(uint64_t n, char* buffer)
+void hextoa(uint32_t n, char* buffer, int fixed_size)
 {
     const char digits[] = "0123456789ABCDEF";
     char* ptr = buffer;
     char* start = buffer;
     int base = 16;
 
+    int cnt = 0;
+
+
+
     if (n == 0) {
 
         *ptr++ = '0';
+        cnt++;
     } else {
 
         while (n > 0) {
             *ptr++ = digits[n % base];
             n /= base;
+            cnt++;
         }
-
-        *ptr = '\0';
     }
+
+    // if fixed size -> add zeroes
+    if (fixed_size > 0) {
+        while (cnt < fixed_size) {
+
+            *ptr++ = '0';
+            cnt++;
+        }
+    }
+
+    *ptr = '\0';
 
     // Reverse the string in-place
     char* end = ptr - 1;
@@ -71,4 +87,83 @@ void hextoa(uint64_t n, char* buffer)
         *start++ = *end;
         *end-- = temp;
     }
+}
+
+char *strcpy(char *dest, const char *src) {
+    char *d = dest;
+    while (*src) {
+        *d++ = *src++;
+    }
+    *d = '\0';
+    return dest;
+}
+
+int printf(const char *fmt, uint64_t fmt_size, ...) {
+    va_list args;
+    va_start(args, fmt_size);
+
+    const char* format = (const char*)fmt;
+    char buffer[32];
+    int len = 0;
+    int i = 0;
+    unsigned int ascii_code = 0;
+
+    // S0: print chars until '\0' or '%'
+s0:
+
+    if (format[i] == '%') {
+        i++;
+        goto s1;
+    }
+
+    if (format[i] == '\0')
+        goto end;
+
+    if (i >= fmt_size)
+        goto end;
+
+    uart_putc(format[i]);
+    i++;
+    goto s0;
+
+    // s1: if exists -> read number of char to use for printing decimal/hex
+s1:
+
+    ascii_code = format[i];
+    if ((ascii_code - '0' >= 0) && (ascii_code - '0' < 10)) {
+        int value = ascii_code - '0';
+        len = (len *10) + value;
+        i++;
+        goto s1;
+    }
+
+    goto s2;
+
+    // s2: read param type and convert param to string
+s2:
+
+    if (format[i] == 'd') { // Integer
+        int val = va_arg(args, int);
+        itoa(val, buffer);
+        uart_puts(buffer);
+    } else if (format[i] == 'x') { // Hexadecimal
+        uint32_t val = va_arg(args, uint32_t);
+        hextoa(val, buffer, len);
+        uart_puts(buffer);
+    } else if (format[i] == 's') { // String
+        const char* str = va_arg(args, const char*);
+        uart_puts(str);
+    } else if (format[i] == 'c') { // Character
+        char c = (char)va_arg(args, int);
+        uart_putc(c);
+    }
+
+    len = 0; // reset len
+    i++;
+
+    goto s0;
+end:
+
+    va_end(args);
+    return 0;
 }

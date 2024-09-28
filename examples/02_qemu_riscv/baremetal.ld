@@ -36,9 +36,12 @@ SECTIONS
      *
      */
     . = ALIGN(16);   /* Align to 16 bytes */
+    my_data_region_start = .; /* Declare the start of the region */
     my_data_region : {
 
         /*
+            ---- PKT 1 ----
+
             15:48:50.177524 IP 192.168.2.185.53240 > 192.168.2.244.ssh: Flags [.], ack 377, win 2046, options [nop,nop,TS val 1307354556 ecr 1160472833], length 0
             	0x0000:  000c 29aa fdff 00e0 4c68 0654 0800 4500  ..).....Lh.T..E.
             	0x0010:  0034 0000 4000 4006 b3c6 c0a8 02b9 c0a8  .4..@.@.........
@@ -46,29 +49,34 @@ SECTIONS
             	0x0030:  07fe ce2e 0000 0101 080a 4dec a5bc 452b  ..........M...E+
             	0x0040:  6901                                     i.
         */
-        LONG(0x000c);   /* 32-bit value */
-        LONG(0x29aa);
-        LONG(0xfdff);
-        LONG(0x00e0);
-        LONG(0x4c68);
-        LONG(0x0654);
-        LONG(0x0800);
-        LONG(0x4500);
-        LONG(0x0034);
-        LONG(0x0000);
-        LONG(0x4000);
-        LONG(0xb3c6);
-        LONG(0xc0a8);
-        LONG(0x02f4);
-        LONG(0xcff8);
-        LONG(0x0016);
-        LONG(0xe37f);
-        LONG(0xedf3);
-        LONG(0xa990);
-        LONG(0x2caa);
-        LONG(0x8010); /*TODO: finish */
+        LONG(0x000c29aa);   /* 32-bit value */
+        LONG(0xfdff00e0);
+        LONG(0x4c680654);
+        LONG(0x08004500);
+
+        LONG(0x00340000);
+        LONG(0x40004006);
+        LONG(0xb3c6c0a8);
+        LONG(0x02b9c0a8);
+
+        LONG(0x02f4cff8);
+        LONG(0x0016e37f);
+        LONG(0xedf3a990);
+        LONG(0x2caa8010);
+
+        LONG(0x07fece2e);
+        LONG(0x00000101);
+        LONG(0x080a4dec);
+        LONG(0xa5bc452b);
+
+        LONG(0x69010000);
+
+        /* CUSTOM END SEQ */
+        QUAD(0xFFFFFFFFFFFFFFFF);
 
         /*
+            ---- PKT 2 ----
+
             15:48:50.194311 IP 192.168.2.244.34531 > dns.google.domain: 22582+ PTR? 185.2.168.192.in-addr.arpa. (44)
             	0x0000:  48a9 8a34 52ba 000c 29aa fdff 0800 4500  H..4R...).....E.
             	0x0010:  0048 135c 4000 4011 539d c0a8 02f4 0808  .H.\@.@.S.......
@@ -77,7 +85,28 @@ SECTIONS
             	0x0040:  0331 3932 0769 6e2d 6164 6472 0461 7270  .192.in-addr.arp
             	0x0050:  6100 000c 0001                           a.....
          */
+
+        QUAD(0x48a98a3452ba000c);
+        QUAD(0x29aafdff08004500);
+
+        QUAD(0x0048135c40004011);
+        QUAD(0x539dc0a802f40808);
+
+        QUAD(0x080886e300350034);
+        QUAD(0xd3f1583601000001);
+
+        QUAD(0x0000000000000331);
+        QUAD(0x3835013203313638);
+
+        QUAD(0x0331393207696e2d);
+        QUAD(0x6164647204617270);
+
+        QUAD(0x6100000c00010000);
+
+        /* CUSTOM END SEQ */
+        QUAD(0xFFFFFFFFFFFFFFFF);
     }
+    my_data_region_end = .; /* declare the end of the data region */
 
     /* Stack allocation */
     . = ALIGN(16);    /* Align the stack */

@@ -9,6 +9,7 @@
 #include <stdint.h>
 
 typedef uint32_t __u32;
+typedef uint64_t __u64;
 
 struct xdp_md {
     __u32 data;
@@ -19,6 +20,8 @@ struct xdp_md {
     __u32 egress_ifindex;   /* txq->dev->ifindex */
 };
 
-uint64_t _bpf_helper_ext_0006(uint64_t fmt, uint64_t fmt_size, ...);
+int bpf_main(void* ctx, uint64_t size);
+
+uint64_t _bpf_helper_ext_0006(const char *fmt, uint64_t fmt_size, ...);
 
 #endif //BAREMETAL_RV_BPF_HELPERS_H
