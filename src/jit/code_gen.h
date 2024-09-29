@@ -34,6 +34,7 @@ namespace ebpf_llvm_jit::jit {
         return (insn.code & 0x07) == EBPF_CLS_JMP ||
                (insn.code & 0x07) == EBPF_CLS_JMP32;
     }
+
     static inline std::string ext_func_sym(uint32_t idx)
     {
         char buf[32];
@@ -47,53 +48,58 @@ namespace ebpf_llvm_jit::jit {
     }
 
 /// Get the source representation of certain ALU operands
-    llvm::Value *emitLoadALUSource(const ebpf_inst &inst, llvm::Value **regs,
-                                   llvm::IRBuilder<> &builder);
-    llvm::Value *emitLoadALUDest(const ebpf_inst &inst, llvm::Value **regs,
-                                 llvm::IRBuilder<> &builder, bool dstAlways64);
-    void emitStoreALUResult(const ebpf_inst &inst, llvm::Value **regs,
-                            llvm::IRBuilder<> &builder, llvm::Value *result);
-    llvm::Expected<llvm::Value *>
-    emitALUEndianConversion(const ebpf_inst &inst, llvm::IRBuilder<> &builder,
-                            llvm::Value *dst_val);
+    llvm::Value
+    *emitLoadALUSource(const ebpf_inst &inst, llvm::Value **regs,llvm::IRBuilder<> &builder);
 
-    void emitALUWithDstAndSrc(
+    llvm::Value
+    *emitLoadALUDest(const ebpf_inst &inst, llvm::Value **regs,llvm::IRBuilder<> &builder, bool dstAlways64);
+
+    void
+    emitStoreALUResult(const ebpf_inst &inst, llvm::Value **regs,llvm::IRBuilder<> &builder, llvm::Value *result);
+
+    llvm::Expected<llvm::Value *>
+    emitALUEndianConversion(const ebpf_inst &inst, llvm::IRBuilder<> &builder,llvm::Value *dst_val);
+
+    void
+    emitALUWithDstAndSrc(
             const ebpf_inst &inst, llvm::IRBuilder<> &builder, llvm::Value **regs,
             std::function<llvm::Value *(llvm::Value *, llvm::Value *)> func);
 
-    llvm::Value *emitStoreLoadingSrc(const ebpf_inst &inst,
-                                     llvm::IRBuilder<> &builder,
-                                     llvm::Value **regs);
-    void emitStoreWritingResult(const ebpf_inst &inst, llvm::IRBuilder<> &builder,
-                                llvm::Value **regs, llvm::Value *result);
+    llvm::Value
+    *emitStoreLoadingSrc(const ebpf_inst &inst, llvm::IRBuilder<> &builder, llvm::Value **regs);
 
-    void emitStore(const ebpf_inst &inst, llvm::IRBuilder<> &builder,
-                   llvm::Value **regs, llvm::IntegerType *destTy);
+    void
+    emitStoreWritingResult(const ebpf_inst &inst, llvm::IRBuilder<> &builder, llvm::Value **regs, llvm::Value *result);
+
+    void
+    emitStore(const ebpf_inst &inst, llvm::IRBuilder<> &builder, llvm::Value **regs, llvm::IntegerType *destTy);
 
     std::tuple<llvm::Value *, llvm::Value *, llvm::Value *>
-    emitJmpLoadSrcAndDstAndZero(const ebpf_inst &inst, llvm::Value **regs,
-                                llvm::IRBuilder<> &builder);
+    emitJmpLoadSrcAndDstAndZero(const ebpf_inst &inst, llvm::Value **regs, llvm::IRBuilder<> &builder);
 
     llvm::Expected<llvm::BasicBlock *>
-    loadJmpDstBlock(uint16_t pc, const ebpf_inst &inst,
-                    const std::map<uint16_t, llvm::BasicBlock *> &instBlocks);
+    loadJmpDstBlock(uint16_t pc, const ebpf_inst &inst, const std::map<uint16_t, llvm::BasicBlock *> &instBlocks);
+
     llvm::Expected<llvm::BasicBlock *>
-    loadCallDstBlock(uint16_t pc, const ebpf_inst &inst,
-                     const std::map<uint16_t, llvm::BasicBlock *> &instBlocks);
+    loadCallDstBlock(uint16_t pc, const ebpf_inst &inst, const std::map<uint16_t, llvm::BasicBlock *> &instBlocks);
+
     llvm::Expected<llvm::BasicBlock *>
-    loadJmpNextBlock(uint16_t pc, const ebpf_inst &inst,
-                     const std::map<uint16_t, llvm::BasicBlock *> &instBlocks);
+    loadJmpNextBlock(uint16_t pc, const ebpf_inst &inst, const std::map<uint16_t, llvm::BasicBlock *> &instBlocks);
+
     llvm::Expected<std::pair<llvm::BasicBlock *, llvm::BasicBlock *> >
-    localJmpDstAndNextBlk(uint16_t pc, const ebpf_inst &inst,
-                          const std::map<uint16_t, llvm::BasicBlock *> &instBlocks);
-    llvm::Value *emitLDXLoadingAddr(llvm::IRBuilder<> &builder, llvm::Value **regs,
-                                    const ebpf_inst &inst);
-    void emitLDXStoringResult(llvm::IRBuilder<> &builder, llvm::Value **regs,
-                              const ebpf_inst &inst, llvm::Value *result);
-    void emitLoadX(llvm::IRBuilder<> &builder, llvm::Value **regs,
-                   const ebpf_inst &inst, llvm::IntegerType *srcTy);
+    localJmpDstAndNextBlk(uint16_t pc, const ebpf_inst &inst, const std::map<uint16_t, llvm::BasicBlock *> &instBlocks);
 
-    llvm::Expected<int> emitCondJmpWithDstAndSrc(
+    llvm::Value
+    *emitLDXLoadingAddr(llvm::IRBuilder<> &builder, llvm::Value **regs, const ebpf_inst &inst);
+
+    void
+    emitLDXStoringResult(llvm::IRBuilder<> &builder, llvm::Value **regs, const ebpf_inst &inst, llvm::Value *result);
+
+    void
+    emitLoadX(llvm::IRBuilder<> &builder, llvm::Value **regs, const ebpf_inst &inst, llvm::IntegerType *srcTy);
+
+    llvm::Expected<int>
+    emitCondJmpWithDstAndSrc(
             llvm::IRBuilder<> &builder, uint16_t pc, const ebpf_inst &inst,
             const std::map<uint16_t, llvm::BasicBlock *> &instBlocks,
             llvm::Value **regs,
@@ -104,7 +110,9 @@ namespace ebpf_llvm_jit::jit {
                     const std::map<std::string, llvm::Function *> &extFunc,
                     llvm::Value **regs, llvm::FunctionType *helperFuncTy,
                     uint16_t pc, llvm::BasicBlock *exitBlk);
-    void emitAtomicBinOp(llvm::IRBuilder<> &builder, llvm::Value **regs,
+
+    void
+    emitAtomicBinOp(llvm::IRBuilder<> &builder, llvm::Value **regs,
                          llvm::AtomicRMWInst::BinOp op, const ebpf_inst &inst,
                          bool is64, bool is_fetch);
 }

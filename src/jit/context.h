@@ -14,6 +14,7 @@
 #include <llvm/ExecutionEngine/Orc/ThreadSafeModule.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/MCJIT.h>
+#include <llvm/IR/IRBuilder.h>
 #include "vm.h"
 #include "../utils/bo.h"
 
@@ -28,13 +29,56 @@ namespace ebpf_llvm_jit::jit {
     const static char *LDDW_HELPER_CODE_ADDR = "__lddw_helper_code_addr";
 
     class context {
-        class vm *vm;
+        //class vm *vm;
+
         std::optional<std::unique_ptr<llvm::orc::LLJIT> > jit;
         std::unique_ptr<pthread_spinlock_t> compiling;
+        std::unique_ptr<llvm::LLVMContext> llvmContext;
+        std::unique_ptr<llvm::Module> jitModule;
+
+        // lddwHelpers (????)
+        uint64_t (*map_by_fd)(uint32_t) = nullptr;
+        uint64_t (*map_by_idx)(uint32_t) = nullptr;
+        uint64_t (*map_val)(uint64_t) = nullptr;
+        uint64_t (*var_addr)(uint32_t) = nullptr;
+        uint64_t (*code_addr)(uint32_t) = nullptr;
+
+        std::string error_msg;
+        std::vector<ebpf_inst> insts;
+        std::map<uint16_t, llvm::BasicBlock *> instBlocks;
+        std::map<std::string, llvm::Function *> lddwHelper;
+
+        std::vector<std::optional<external_function>> ext_funcs;
+        std::map<std::string, llvm::Function *> extFunc;
+        std::vector<bool> blockBegin;
+
+        /**
+         * These blocks are the next instructions of the returning target of
+         * local functions
+         */
+        std::map<uint16_t, llvm::BlockAddress *> localFuncRetBlks;
+
+        // FN TYPES
+        llvm::FunctionType *lddwHelperWithUint32;
+        llvm::FunctionType *lddwHelperWithUint64;
+        llvm::FunctionType *helperFuncTy;
+
+        // SPECIAL BLOCKS
+        llvm::BasicBlock *setupBlock;
+        llvm::BasicBlock *exitBlock;
+        llvm::BasicBlock *localRetBlock;
+
+        void loadLddwHelpers(const std::vector<std::string> &lddwHelpers);
+        void loadExtFuncs(const std::vector<std::string> &extFuncNames);
+
         llvm::Expected<llvm::orc::ThreadSafeModule>
         generateModule(const std::vector<std::string> &extFuncNames,
                        const std::vector<std::string> &lddwHelpers,
                        bool patch_map_val_at_compile_time);
+
+        llvm::Expected<int>
+        HandleInstruction(llvm::IRBuilder<> &builder, uint16_t pc, std::vector<llvm::Value *> regs, bool patch_map_val_at_compile_time,llvm::Value *callStack, llvm::Value *callItemCnt);
+
         std::vector<uint8_t>
         do_aot_compile(const std::vector<std::string> &extFuncNames,
                        const std::vector<std::string> &lddwHelpers,
@@ -42,19 +86,18 @@ namespace ebpf_llvm_jit::jit {
                        std::string cpu,
                        std::string cpu_features,
                        std::string target_triple);
-        // (JIT, extFuncs, definedLddwSymbols)
-        std::tuple<std::unique_ptr<llvm::orc::LLJIT>, std::vector<std::string>,
-        std::vector<std::string> >
-        create_and_initialize_lljit_instance();
+
 
     public:
-        void do_jit_compile();
-        context(class vm *vm);
+        context();
+
         virtual ~context();
-        ebpf_llvm_jit::utils::precompiled_ebpf_function compile();
-        ebpf_llvm_jit::utils::precompiled_ebpf_function get_entry_address();
+
+        int load_code(const void *code, size_t code_len);
+        std::string get_error_message();
+        int register_external_function(size_t index, const std::string &name, void *fn);
+
         std::vector<uint8_t> do_aot_compile(bool print_ir = false, std::string cpu = "generic", std::string cpu_features="", std::string target_triple = "");
-        void load_aot_object(const std::vector<uint8_t> &buf);
     };
 }
 

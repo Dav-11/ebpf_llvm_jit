@@ -15,11 +15,16 @@
 #include "src/helpers/helper.h"
 #include "src/include/helpers_impl.h"
 
-static int add_helpers(ebpf_llvm_jit::jit::vm *vm) {
+static int add_helpers(ebpf_llvm_jit::jit::context *ctx) {
     int err;
 
-    ebpf_llvm_jit::helpers::helper bpf_printk = ebpf_llvm_jit::helpers::helper(6, "_bpf_helper_ext_0006", (void *) _bpf_helper_ext_0006);
-    err = bpf_printk.addToVm(vm);
+    ebpf_llvm_jit::helpers::helper bpf_printk = ebpf_llvm_jit::helpers::helper(
+        6,
+        "_bpf_helper_ext_0006",
+        (void *) _bpf_helper_ext_0006
+    );
+
+    err = ctx->register_external_function(bpf_printk.getIndex(), bpf_printk.getName(), bpf_printk.getFn());
     if (err) {
         return err;
     }
@@ -49,27 +54,26 @@ static int build_ebpf_program(const std::string &ebpf_elf,
         auto name = bpf_program__name(prog);
         SPDLOG_INFO("Processing program {}", name);
 
-        ebpf_llvm_jit::jit::vm vm;
+        ebpf_llvm_jit::jit::context ctx;
 
-        if (add_helpers(&vm)) {
+        if (add_helpers(&ctx)) {
             SPDLOG_ERROR("error while loading helpers");
             return 1;
         }
 
-        if (vm.load_code(
+        if (ctx.load_code(
             (const void *)bpf_program__insns(prog),
             (uint32_t)bpf_program__insn_cnt(prog) * 8) < 0
         ) {
             SPDLOG_ERROR(
                     "Unable to load instruction of program {}: ",
-                    name, vm.get_error_message());
+                    name, ctx.get_error_message());
             return 1;
         }
 
-        ebpf_llvm_jit::jit::context ctx(&vm);
-
         // write result to file
         auto result = ctx.do_aot_compile(true, cpu, cpu_features, target_triple);
+
         auto out_path = output / (std::string(name) + ".o");
         std::ofstream ofs(out_path, std::ios::binary);
         ofs.write((const char *)result.data(), result.size());

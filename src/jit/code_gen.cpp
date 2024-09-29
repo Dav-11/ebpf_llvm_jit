@@ -4,8 +4,8 @@ namespace ebpf_llvm_jit::jit {
 
 
 /// Get the source representation of certain ALU operands
-    llvm::Value *emitLoadALUSource(const ebpf_inst &inst, llvm::Value **regs,
-                                   llvm::IRBuilder<> &builder)
+    llvm::Value
+    *emitLoadALUSource(const ebpf_inst &inst, llvm::Value **regs, llvm::IRBuilder<> &builder)
     {
         int srcTy = inst.code & 0x08;
         int code = inst.code & 0xf0;
@@ -33,8 +33,8 @@ namespace ebpf_llvm_jit::jit {
         return src_val;
     }
 
-    llvm::Value *emitLoadALUDest(const ebpf_inst &inst, llvm::Value **regs,
-                                 llvm::IRBuilder<> &builder, bool dstAlways64)
+    llvm::Value
+    *emitLoadALUDest(const ebpf_inst &inst, llvm::Value **regs, llvm::IRBuilder<> &builder, bool dstAlways64)
     {
         if (((inst.code & 0x07) == EBPF_CLS_ALU64) || dstAlways64) {
             return builder.CreateLoad(builder.getInt64Ty(),
@@ -45,8 +45,8 @@ namespace ebpf_llvm_jit::jit {
         }
     }
 
-    void emitStoreALUResult(const ebpf_inst &inst, llvm::Value **regs,
-                            llvm::IRBuilder<> &builder, llvm::Value *result)
+    void
+    emitStoreALUResult(const ebpf_inst &inst, llvm::Value **regs, llvm::IRBuilder<> &builder, llvm::Value *result)
     {
         if ((inst.code & 0x07) == EBPF_CLS_ALU64) {
             builder.CreateStore(result, regs[inst.dst_reg]);
@@ -58,9 +58,9 @@ namespace ebpf_llvm_jit::jit {
                                 regs[inst.dst_reg]);
         }
     }
+
     llvm::Expected<llvm::Value *>
-    emitALUEndianConversion(const ebpf_inst &inst, llvm::IRBuilder<> &builder,
-                            llvm::Value *dst_val)
+    emitALUEndianConversion(const ebpf_inst &inst, llvm::IRBuilder<> &builder, llvm::Value *dst_val)
     {
         // TODO: Support 64bit conversion
         //  Convert to big endian
@@ -117,8 +117,8 @@ namespace ebpf_llvm_jit::jit {
         emitStoreALUResult(inst, regs, builder, result);
     }
 
-    llvm::Value *emitStoreLoadingSrc(const ebpf_inst &inst,
-                                     llvm::IRBuilder<> &builder, llvm::Value **regs)
+    llvm::Value
+    *emitStoreLoadingSrc(const ebpf_inst &inst,llvm::IRBuilder<> &builder, llvm::Value **regs)
     {
         if ((inst.code & 0x07) == EBPF_CLS_STX) {
             return builder.CreateLoad(builder.getInt64Ty(),
@@ -128,8 +128,8 @@ namespace ebpf_llvm_jit::jit {
         }
     }
 
-    void emitStoreWritingResult(const ebpf_inst &inst, llvm::IRBuilder<> &builder,
-                                llvm::Value **regs, llvm::Value *result)
+    void
+    emitStoreWritingResult(const ebpf_inst &inst, llvm::IRBuilder<> &builder,llvm::Value **regs, llvm::Value *result)
     {
         builder.CreateStore(
                 result,
@@ -139,8 +139,8 @@ namespace ebpf_llvm_jit::jit {
                                   { builder.getInt64(inst.off) }));
     }
 
-    void emitStore(const ebpf_inst &inst, llvm::IRBuilder<> &builder,
-                   llvm::Value **regs, llvm::IntegerType *destTy)
+    void
+    emitStore(const ebpf_inst &inst, llvm::IRBuilder<> &builder,llvm::Value **regs, llvm::IntegerType *destTy)
     {
         using namespace llvm;
         Value *src = emitStoreLoadingSrc(inst, builder, &regs[0]);
@@ -150,8 +150,7 @@ namespace ebpf_llvm_jit::jit {
     }
 
     std::tuple<llvm::Value *, llvm::Value *, llvm::Value *>
-    emitJmpLoadSrcAndDstAndZero(const ebpf_inst &inst, llvm::Value **regs,
-                                llvm::IRBuilder<> &builder)
+    emitJmpLoadSrcAndDstAndZero(const ebpf_inst &inst, llvm::Value **regs,llvm::IRBuilder<> &builder)
     {
         int regSrc = (inst.code & 0x8) == 0x8;
         using namespace llvm;
@@ -183,8 +182,7 @@ namespace ebpf_llvm_jit::jit {
     }
 
     llvm::Expected<llvm::BasicBlock *>
-    loadJmpDstBlock(uint16_t pc, const ebpf_inst &inst,
-                    const std::map<uint16_t, llvm::BasicBlock *> &instBlocks)
+    loadJmpDstBlock(uint16_t pc, const ebpf_inst &inst, const std::map<uint16_t, llvm::BasicBlock *> &instBlocks)
     {
         SPDLOG_TRACE("pc {} request jump to {}", pc, pc + 1 + inst.off);
         uint16_t dstBlkId = pc + 1 + inst.off;
@@ -200,8 +198,7 @@ namespace ebpf_llvm_jit::jit {
     }
 
     llvm::Expected<llvm::BasicBlock *>
-    loadCallDstBlock(uint16_t pc, const ebpf_inst &inst,
-                     const std::map<uint16_t, llvm::BasicBlock *> &instBlocks)
+    loadCallDstBlock(uint16_t pc, const ebpf_inst &inst, const std::map<uint16_t, llvm::BasicBlock *> &instBlocks)
     {
         uint16_t dstBlkId = pc + 1 + inst.imm;
         if (auto itr = instBlocks.find(dstBlkId); itr != instBlocks.end()) {
@@ -216,8 +213,7 @@ namespace ebpf_llvm_jit::jit {
     }
 
     llvm::Expected<llvm::BasicBlock *>
-    loadJmpNextBlock(uint16_t pc, const ebpf_inst &inst,
-                     const std::map<uint16_t, llvm::BasicBlock *> &instBlocks)
+    loadJmpNextBlock(uint16_t pc, const ebpf_inst &inst, const std::map<uint16_t, llvm::BasicBlock *> &instBlocks)
     {
         uint16_t nextBlkId = pc + 1;
         if (auto itr = instBlocks.find(nextBlkId); itr != instBlocks.end()) {
@@ -232,8 +228,7 @@ namespace ebpf_llvm_jit::jit {
     }
 
     llvm::Expected<std::pair<llvm::BasicBlock *, llvm::BasicBlock *> >
-    localJmpDstAndNextBlk(uint16_t pc, const ebpf_inst &inst,
-                          const std::map<uint16_t, llvm::BasicBlock *> &instBlocks)
+    localJmpDstAndNextBlk(uint16_t pc, const ebpf_inst &inst, const std::map<uint16_t, llvm::BasicBlock *> &instBlocks)
     {
         if (auto dst = loadJmpDstBlock(pc, inst, instBlocks); dst) {
             if (auto next = loadJmpNextBlock(pc, inst, instBlocks); next) {
@@ -246,8 +241,8 @@ namespace ebpf_llvm_jit::jit {
         }
     }
 
-    llvm::Value *emitLDXLoadingAddr(llvm::IRBuilder<> &builder, llvm::Value **regs,
-                                    const ebpf_inst &inst)
+    llvm::Value
+    *emitLDXLoadingAddr(llvm::IRBuilder<> &builder, llvm::Value **regs, const ebpf_inst &inst)
     {
         // [rX + OFFSET]
         return builder.CreateGEP(builder.getInt8Ty(),
@@ -256,8 +251,8 @@ namespace ebpf_llvm_jit::jit {
                                  { builder.getInt64(inst.off) });
     }
 
-    void emitLDXStoringResult(llvm::IRBuilder<> &builder, llvm::Value **regs,
-                              const ebpf_inst &inst, llvm::Value *result)
+    void
+    emitLDXStoringResult(llvm::IRBuilder<> &builder, llvm::Value **regs, const ebpf_inst &inst, llvm::Value *result)
     {
         // Extend the loaded value to 64bits, then store it into
         // the register
@@ -265,8 +260,8 @@ namespace ebpf_llvm_jit::jit {
                             regs[inst.dst_reg]);
     }
 
-    void emitLoadX(llvm::IRBuilder<> &builder, llvm::Value **regs,
-                   const ebpf_inst &inst, llvm::IntegerType *srcTy)
+    void
+    emitLoadX(llvm::IRBuilder<> &builder, llvm::Value **regs, const ebpf_inst &inst, llvm::IntegerType *srcTy)
     {
         using namespace llvm;
         Value *addr = emitLDXLoadingAddr(builder, &regs[0], inst);
@@ -274,7 +269,8 @@ namespace ebpf_llvm_jit::jit {
         emitLDXStoringResult(builder, &regs[0], inst, result);
     }
 
-    llvm::Expected<int> emitCondJmpWithDstAndSrc(
+    llvm::Expected<int>
+    emitCondJmpWithDstAndSrc(
             llvm::IRBuilder<> &builder, uint16_t pc, const ebpf_inst &inst,
             const std::map<uint16_t, llvm::BasicBlock *> &instBlocks,
             llvm::Value **regs,
@@ -334,9 +330,9 @@ namespace ebpf_llvm_jit::jit {
                     llvm::inconvertibleErrorCode());
         }
     }
-    void emitAtomicBinOp(llvm::IRBuilder<> &builder, llvm::Value **regs,
-                         llvm::AtomicRMWInst::BinOp op, const ebpf_inst &inst,
-                         bool is64, bool is_fetch)
+
+    void
+    emitAtomicBinOp(llvm::IRBuilder<> &builder, llvm::Value **regs, llvm::AtomicRMWInst::BinOp op, const ebpf_inst &inst, bool is64, bool is_fetch)
     {
         auto oldValue = builder.CreateAtomicRMW(
                 op,

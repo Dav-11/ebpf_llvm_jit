@@ -84,43 +84,39 @@ static void optimizeModule(llvm::Module &M)
 extern "C" void __aeabi_unwind_cpp_pr1();
 #endif
 
-
-
-context::context(class vm *vm): vm(vm)
+context::context() : ext_funcs(MAX_EXT_FUNCS)
 {
     using namespace llvm;
     int zero = 0;
-    if (__atomic_compare_exchange_n(&llvm_initialized, &zero, 1, false,
-                                    __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {
-        SPDLOG_INFO("Initializing llvm");
-        LLVMInitializeNativeTarget();
-        LLVMInitializeNativeAsmPrinter();
+    if (__atomic_compare_exchange_n(&llvm_initialized, &zero, 1, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {
+
+        SPDLOG_INFO("Initializing llvm...");
+        LLVMInitializeAllTargetInfos();
+        LLVMInitializeAllTargets();
+        LLVMInitializeAllTargetMCs();
+        LLVMInitializeAllAsmParsers();
+        LLVMInitializeAllAsmPrinters();
+        SPDLOG_INFO("done");
     }
+
     compiling = std::make_unique<pthread_spinlock_t>();
     pthread_spin_init(compiling.get(), PTHREAD_PROCESS_PRIVATE);
 }
 
-void context::do_jit_compile()
+std::string context::get_error_message()
 {
-    auto [jit, extFuncNames, definedLddwHelpers] =
-            create_and_initialize_lljit_instance();
-    auto bpfModule = ExitOnErr(
-            generateModule(extFuncNames, definedLddwHelpers, true));
-    bpfModule.withModuleDo([](auto &M) { optimizeModule(M); });
-    ExitOnErr(jit->addIRModule(std::move(bpfModule)));
-    this->jit = std::move(jit);
+    return error_msg;
 }
 
-ebpf_llvm_jit::utils::precompiled_ebpf_function context::compile() {
-
-    spin_lock_guard guard(compiling.get());
-    if (!this->jit.has_value()) {
-        do_jit_compile();
-    } else {
-        SPDLOG_DEBUG("LLVM-JIT: already compiled");
+int context::load_code(const void *code, size_t code_len)
+{
+    if (code_len % 8 != 0) {
+        error_msg = "Code len must be a multiple of 8";
+        return -EINVAL;
     }
 
-    return this->get_entry_address();
+    insts.assign((ebpf_inst *)code,(ebpf_inst *)code + code_len / 8);
+    return 0;
 }
 
 context::~context()
@@ -137,31 +133,15 @@ std::vector<uint8_t> context::do_aot_compile(
             std::string target_triple)
 {
     SPDLOG_INFO("AOT: start");
-    if (auto module = generateModule(extFuncNames, lddwHelpers, false);
-            module) {
-
-        LLVMInitializeAllTargetInfos();
-        LLVMInitializeAllTargets();
-        LLVMInitializeAllTargetMCs();
-        LLVMInitializeAllAsmParsers();
-        LLVMInitializeAllAsmPrinters();
+    if (auto module = generateModule(extFuncNames, lddwHelpers, false); module) {
 
         auto defaultTargetTriple = llvm::sys::getDefaultTargetTriple();
-        // Define CPU and features with hardware FPU
-
         if ((target_triple != "default") && (target_triple != "")) {
             defaultTargetTriple = target_triple;
         }
 
-        // if (false) {
-        //     defaultTargetTriple = "riscv32-unknown-elf";
-        //     cpu = "generic-rv32"; // or a specific RISC-V CPU like 'rocket'
-        //     features = "+m,+soft-float";
-        // }
-
         SPDLOG_INFO("AOT: target triple: {}", defaultTargetTriple);
-        return module->withModuleDo([&](auto &module)
-                                            -> std::vector<uint8_t> {
+        return module->withModuleDo([&](auto &module) -> std::vector<uint8_t> {
             if (print_ir) {
                 module.print(llvm::errs(), nullptr);
             }
@@ -177,11 +157,8 @@ std::vector<uint8_t> context::do_aot_compile(
                     defaultTargetTriple, error);
 
             if (!target) {
-                SPDLOG_ERROR(
-                        "AOT: Failed to get local target: {}",
-                        error);
-                throw std::runtime_error(
-                        "Unable to get local target");
+                SPDLOG_ERROR("AOT: Failed to get local target: {}", error);
+                throw std::runtime_error("Unable to get local target");
             }
 
             // Create target machine with hardware floating-point support (RV64G with FD extensions)
@@ -192,13 +169,11 @@ std::vector<uint8_t> context::do_aot_compile(
 
             if (!targetMachine) {
                 SPDLOG_ERROR("Unable to create target machine");
-                throw std::runtime_error(
-                        "Unable to create target machine");
+                throw std::runtime_error("Unable to create target machine");
             }
             module.setDataLayout(targetMachine->createDataLayout());
             llvm::SmallVector<char, 0> objStream;
-            std::unique_ptr<llvm::raw_svector_ostream> BOS =
-                    std::make_unique<llvm::raw_svector_ostream>(
+            std::unique_ptr<llvm::raw_svector_ostream> BOS =std::make_unique<llvm::raw_svector_ostream>(
                             objStream);
 
             llvm::legacy::PassManager pass;
@@ -208,8 +183,7 @@ std::vector<uint8_t> context::do_aot_compile(
 				    pass, *BOS, nullptr,
 				    CodeGenFileType::ObjectFile)) {
 #elif LLVM_VERSION_MAJOR >= 10
-            if (targetMachine->addPassesToEmitFile(
-                    pass, *BOS, nullptr, llvm::CGFT_ObjectFile)) {
+            if (targetMachine->addPassesToEmitFile(pass, *BOS, nullptr, llvm::CGFT_ObjectFile)) {
 #elif LLVM_VERSION_MAJOR >= 8
                 if (targetMachine->addPassesToEmitFile(
 				    pass, *BOS, nullptr,
@@ -219,18 +193,14 @@ std::vector<uint8_t> context::do_aot_compile(
 				    pass, *BOS, TargetMachine::CGFT_ObjectFile,
 				    true)) {
 #endif
-                SPDLOG_ERROR(
-                        "Unable to emit module for target machine");
-                throw std::runtime_error(
-                        "Unable to emit module for target machine");
+                SPDLOG_ERROR("Unable to emit module for target machine");
+                throw std::runtime_error("Unable to emit module for target machine");
             }
 
             pass.run(module);
-            SPDLOG_INFO("AOT: done, received {} bytes",
-                        objStream.size());
+            SPDLOG_INFO("AOT: done, received {} bytes",objStream.size());
 
-            std::vector<uint8_t> result(objStream.begin(),
-                                        objStream.end());
+            std::vector<uint8_t> result(objStream.begin(),objStream.end());
             return result;
         });
     } else {
@@ -246,11 +216,11 @@ std::vector<uint8_t> context::do_aot_compile(bool print_ir, const std::string cp
 {
     std::vector<std::string> extNames, lddwNames;
 
-    for (uint32_t i = 0; i < std::size(vm->ext_funcs); i++) {
+    for (uint32_t i = 0; i < std::size(ext_funcs); i++) {
 
-        if (vm->ext_funcs[i].has_value()) {
+        if (ext_funcs[i].has_value()) {
 
-            SPDLOG_INFO("Found ext_fn non empty: {} -> {}", i, vm->ext_funcs[i]->name);
+            SPDLOG_INFO("Found ext_fn non empty: {} -> {}", i, ext_funcs[i]->name);
 
 #if LLVM_VERSION_MAJOR >= 16
             extNames.emplace_back(ext_func_sym(i));
@@ -269,140 +239,29 @@ std::vector<uint8_t> context::do_aot_compile(bool print_ir, const std::string cp
 #endif
         }
     };
-    // Only map_val will have a chance to be called at runtime
-    tryDefineLddwHelper(LDDW_HELPER_MAP_VAL, (void *)vm->map_val);
 
-    // These symbols won't be used at runtime
-    // tryDefineLddwHelper(LDDW_HELPER_MAP_BY_FD, (void *)vm->map_by_fd);
-    // tryDefineLddwHelper(LDDW_HELPER_MAP_BY_IDX, (void *)vm->map_by_idx);
-    // tryDefineLddwHelper(LDDW_HELPER_CODE_ADDR, (void *)vm->code_addr);
-    // tryDefineLddwHelper(LDDW_HELPER_VAR_ADDR, (void *)vm->var_addr);
+    // Only map_val will have a chance to be called at runtime
+    tryDefineLddwHelper(LDDW_HELPER_MAP_VAL, (void *)map_val);
 
     return this->do_aot_compile(extNames, lddwNames, print_ir, cpu, cpu_features, target_triple);
 }
 
-void context::load_aot_object(const std::vector<uint8_t> &buf)
+
+int context::register_external_function(size_t index, const std::string &name, void *fn)
 {
-    SPDLOG_INFO("LLVM-JIT: Loading aot object");
-    if (jit.has_value()) {
-        SPDLOG_ERROR("Unable to load aot object: already compiled");
-        throw std::runtime_error(
-                "Unable to load aot object: already compiled");
+    if (index >= ext_funcs.size()) {
+        error_msg = "Index too large";
+        SPDLOG_ERROR("Index too large {} for ext func {}", index, name);
+        return -E2BIG;
     }
-    auto buffer = llvm::MemoryBuffer::getMemBuffer(
-            llvm::StringRef((const char *)buf.data(), buf.size()));
-    auto [jit, extFuncNames, definedLddwHelpers] =
-            create_and_initialize_lljit_instance();
-    if (auto err = jit->addObjectFile(std::move(buffer)); err) {
-        std::string buf;
-        llvm::raw_string_ostream os(buf);
-        os << err;
-        SPDLOG_CRITICAL("Unable to add object file: {}", buf);
-        throw std::runtime_error("Failed to load AOT object");
+
+    if (ext_funcs[index].has_value()) {
+        error_msg = "Already defined";
+        SPDLOG_ERROR("Index {} already occupied by {}", index, ext_funcs[index]->name);
+        return -EEXIST;
     }
-    this->jit = std::move(jit);
-    // Test getting entry function
-    this->get_entry_address();
+
+    ext_funcs[index] = external_function(name, fn);
+    return 0;
 }
-
-std::tuple<std::unique_ptr<llvm::orc::LLJIT>, std::vector<std::string>,
-        std::vector<std::string> >
-context::create_and_initialize_lljit_instance()
-{
-    // Create a JIT builder
-    SPDLOG_DEBUG("LLVM-JIT: Creating LLJIT instance");
-    auto jit = ExitOnErr(llvm::orc::LLJITBuilder().create());
-
-    auto &mainDylib = jit->getMainJITDylib();
-    std::vector<std::string> extFuncNames;
-    // insert the helper functions
-    llvm::orc::SymbolMap extSymbols;
-    for (uint32_t i = 0; i < std::size(vm->ext_funcs); i++) {
-        if (vm->ext_funcs[i].has_value()) {
-            auto sym = llvm::JITEvaluatedSymbol::fromPointer(
-                    vm->ext_funcs[i]->fn);
-            auto symName = jit->getExecutionSession().intern(
-                    utils::ext_func_sym(i));
-            sym.setFlags(llvm::JITSymbolFlags::Callable |
-                                 llvm::JITSymbolFlags::Exported);
-
-#if LLVM_VERSION_MAJOR < 17
-            extSymbols.try_emplace(symName, sym);
-            extFuncNames.push_back(utils::ext_func_sym(i));
-#else
-            auto symbol = ::llvm::orc::ExecutorSymbolDef(
-				::llvm::orc::ExecutorAddr(sym.getAddress()),
-				sym.getFlags());
-			extSymbols.try_emplace(symName, symbol);
-			extFuncNames.emplace_back(ext_func_sym(i));
-#endif
-        }
-    }
-#if defined(__arm__) || defined(_M_ARM)
-    SPDLOG_INFO("Defining __aeabi_unwind_cpp_pr1 on arm32");
-	extSymbols.try_emplace(
-		jit->getExecutionSession().intern("__aeabi_unwind_cpp_pr1"),
-		JITEvaluatedSymbol::fromPointer(__aeabi_unwind_cpp_pr1));
-#endif
-    ExitOnErr(mainDylib.define(absoluteSymbols(extSymbols)));
-    // Define lddw helpers
-    llvm::orc::SymbolMap lddwSyms;
-    std::vector<std::string> definedLddwHelpers;
-    const auto tryDefineLddwHelper = [&](const char *name, void *func) {
-        if (func) {
-            SPDLOG_DEBUG("Defining LDDW helper {} with addr {:x}",
-                         name, (uintptr_t)func);
-            auto sym = llvm::JITEvaluatedSymbol::fromPointer(func);
-            // printf("The type of sym %s\n", typeid(sym).name());
-            sym.setFlags(llvm::JITSymbolFlags::Callable |
-                                 llvm::JITSymbolFlags::Exported);
-
-#if LLVM_VERSION_MAJOR < 17
-            lddwSyms.try_emplace(
-                    jit->getExecutionSession().intern(name), sym);
-            definedLddwHelpers.emplace_back(name);
-#else
-            auto symbol = ::llvm::orc::ExecutorSymbolDef(
-				::llvm::orc::ExecutorAddr(sym.getAddress()),
-				sym.getFlags());
-			lddwSyms.try_emplace(
-				jit->getExecutionSession().intern(name),
-				symbol);
-			definedLddwHelpers.emplace_back(name);
-#endif
-        }
-    };
-    // Only map_val will have a chance to be called at runtime, so it's the
-    // only symbol to be defined
-    tryDefineLddwHelper(LDDW_HELPER_MAP_VAL, (void *)vm->map_val);
-    // These symbols won't be used at runtime
-    // tryDefineLddwHelper(LDDW_HELPER_MAP_BY_FD, (void *)vm->map_by_fd);
-    // tryDefineLddwHelper(LDDW_HELPER_MAP_BY_IDX, (void *)vm->map_by_idx);
-    // tryDefineLddwHelper(LDDW_HELPER_CODE_ADDR, (void *)vm->code_addr);
-    // tryDefineLddwHelper(LDDW_HELPER_VAR_ADDR, (void *)vm->var_addr);
-    ExitOnErr(mainDylib.define(absoluteSymbols(lddwSyms)));
-    return { std::move(jit), extFuncNames, definedLddwHelpers };
-}
-
-ebpf_llvm_jit::utils::precompiled_ebpf_function
-context::get_entry_address()
-{
-    if (!this->jit.has_value()) {
-        SPDLOG_CRITICAL(
-                "Not compiled yet. Unable to get entry func address");
-        throw std::runtime_error("Not compiled yet");
-    }
-    if (auto err = (*jit)->lookup("bpf_main"); !err) {
-        std::string buf;
-        llvm::raw_string_ostream os(buf);
-        os << err.takeError();
-        SPDLOG_CRITICAL("Unable to find symbol `bpf_main`: {}", buf);
-        throw std::runtime_error("Unable to link symbol `bpf_main`");
-    } else {
-        auto addr = err->toPtr<ebpf_llvm_jit::utils::precompiled_ebpf_function>();
-        SPDLOG_DEBUG("LLVM-JIT: Entry func is {:x}", (uintptr_t)addr);
-        return addr;
-    }
-}
-
 

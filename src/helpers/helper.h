@@ -15,7 +15,6 @@ namespace ebpf_llvm_jit::helpers{
     public:
 
         helper(unsigned int index, std::string name, void *fn);
-        int addToVm(ebpf_llvm_jit::jit::vm *vm);
 
         [[nodiscard]] unsigned int getIndex() const;
         [[nodiscard]] const std::string &getName() const;

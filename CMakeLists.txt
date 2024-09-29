@@ -14,7 +14,6 @@ include(FetchContent)
 #######################################
 include(cmake/libbpf.cmake)
 include(cmake/llvm-15.cmake)
-#include(cmake/llvm-os.cmake)
 include(cmake/argparse.cmake)
 include(cmake/spdlog.cmake)
 
@@ -34,8 +33,6 @@ include_directories(${SPDLOG_INCLUDE_DIRS})
 add_executable(ebpf_llvm_jit
         main.cpp
         src/ebpf_inst.h
-        src/jit/vm.cpp
-        src/jit/vm.h
         src/jit/context.cpp
         src/jit/context.h
         src/jit/external_function.cpp
