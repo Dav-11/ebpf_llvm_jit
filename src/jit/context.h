@@ -15,8 +15,13 @@
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/MCJIT.h>
 #include <llvm/IR/IRBuilder.h>
-#include "vm.h"
 #include "../utils/bo.h"
+#include "../ebpf_inst.h"
+#include "external_function.h"
+
+#ifndef MAX_EXT_FUNCS
+#define MAX_EXT_FUNCS 8192
+#endif
 
 #define IS_ALIGNED(x, a) (((uintptr_t)(x) & ((a)-1)) == 0)
 

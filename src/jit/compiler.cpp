@@ -30,7 +30,6 @@
 #include "spdlog/spdlog.h"
 #include <spdlog/spdlog.h>
 #include "code_gen.h"
-#include "vm.h"
 
 #define HANDLE_ERR(ret)             \
     {                               \
@@ -131,6 +130,7 @@ Expected<ThreadSafeModule> context::generateModule(
     jitModule = std::make_unique<Module>("bpf-jit", *llvmContext);
 
     if (insts.empty()) {
+
         return llvm::make_error<llvm::StringError>("No instructions provided", llvm::inconvertibleErrorCode());
     }
 
@@ -353,14 +353,889 @@ Expected<ThreadSafeModule> context::generateModule(
                     llvm::inconvertibleErrorCode());
         }
 
-        auto res = this->HandleInstruction(builder, pc, regs, patch_map_val_at_compile_time, callStack, callItemCnt);
-        if (auto E = res.takeError()) {
-            // We must consume the error. Typically one of:
-            // - return the error to our caller
-            // - toString(), when logging
-            // - consumeError(), to silently swallow the error
-            // - handleErrors(), to distinguish error types
-            return E;
+        SPDLOG_INFO("INSN [CODE: {}, ]", inst.code);
+
+        switch (inst.code) {
+
+            /*************************
+             * ALU
+             *************************/
+
+            // ADD
+            case EBPF_OP_ADD64_IMM:
+            case EBPF_OP_ADD_IMM:
+            case EBPF_OP_ADD64_REG:
+            case EBPF_OP_ADD_REG: {
+                emitALUWithDstAndSrc(
+                        inst,
+                        builder,
+                        &regs[0],
+                        [&](Value *dst_val, Value *src_val) {
+                            return builder.CreateAdd(dst_val,src_val);
+                        }
+                );
+
+                break;
+            }
+
+                // SUB
+            case EBPF_OP_SUB64_IMM:
+            case EBPF_OP_SUB_IMM:
+            case EBPF_OP_SUB64_REG:
+            case EBPF_OP_SUB_REG: {
+                emitALUWithDstAndSrc(
+                        inst,
+                        builder,
+                        &regs[0],
+                        [&](Value *dst_val, Value *src_val) {
+                            return builder.CreateSub(dst_val,src_val);
+                        });
+                break;
+            }
+
+                // MUL
+            case EBPF_OP_MUL64_IMM:
+            case EBPF_OP_MUL_IMM:
+            case EBPF_OP_MUL64_REG:
+            case EBPF_OP_MUL_REG: {
+                emitALUWithDstAndSrc(
+                        inst, builder, &regs[0],
+                        [&](Value *dst_val, Value *src_val) {
+                            return builder.CreateBinOp(
+                                    Instruction::BinaryOps::Mul,
+                                    dst_val, src_val);
+                        });
+                break;
+            }
+
+                // DIV
+            case EBPF_OP_DIV64_IMM:
+            case EBPF_OP_DIV_IMM:
+            case EBPF_OP_DIV64_REG:
+            case EBPF_OP_DIV_REG: {
+                // Set dst to zero if trying to divide by zero
+
+                emitALUWithDstAndSrc(
+                        inst,
+                        builder,
+                        &regs[0],
+                        [&](Value *dst_val, Value *src_val) {
+
+                            bool is64 = (inst.code & 0x07) == EBPF_CLS_ALU64;
+
+                            auto result = builder.CreateSelect(
+                                    builder.CreateICmpEQ(
+                                            src_val,
+                                            is64 ?
+                                            builder.getInt64(0) :
+                                            builder.getInt32(0)
+                                    ),
+                                    is_alu64(inst) ?
+                                    builder.getInt64(0) :
+                                    builder.getInt32(0),
+                                    builder.CreateUDiv(dst_val,src_val));
+                            return result;
+                        }
+                );
+
+                break;
+            }
+
+                // OR
+            case EBPF_OP_OR64_IMM:
+            case EBPF_OP_OR_IMM:
+            case EBPF_OP_OR64_REG:
+            case EBPF_OP_OR_REG: {
+                emitALUWithDstAndSrc(
+                        inst,
+                        builder,
+                        &regs[0],
+                        [&](Value *dst_val, Value *src_val) {
+                            return builder.CreateOr(dst_val,src_val);
+                        }
+                );
+
+                break;
+            }
+
+                // AND
+            case EBPF_OP_AND64_IMM:
+            case EBPF_OP_AND_IMM:
+            case EBPF_OP_AND64_REG:
+            case EBPF_OP_AND_REG: {
+                emitALUWithDstAndSrc(
+                        inst,
+                        builder,
+                        &regs[0],
+                        [&](Value *dst_val, Value *src_val) {
+                            return builder.CreateAnd(dst_val,src_val);
+                        }
+                );
+
+                break;
+            }
+
+                // LSH
+            case EBPF_OP_LSH64_IMM:
+            case EBPF_OP_LSH_IMM:
+            case EBPF_OP_LSH64_REG:
+            case EBPF_OP_LSH_REG: {
+                emitALUWithDstAndSrc(
+                        inst, builder, &regs[0],
+                        [&](Value *dst_val, Value *src_val) {
+                            return builder.CreateShl(
+                                    dst_val,
+                                    is_alu64(inst) ?
+                                    builder.CreateURem(
+                                            src_val,
+                                            builder.getInt64(
+                                                    64)) :
+                                    builder.CreateURem(
+                                            src_val,
+                                            builder.getInt32(
+                                                    32)));
+                        });
+                break;
+            }
+
+                // RSH
+            case EBPF_OP_RSH64_IMM:
+            case EBPF_OP_RSH_IMM:
+            case EBPF_OP_RSH64_REG:
+            case EBPF_OP_RSH_REG: {
+                emitALUWithDstAndSrc(
+                        inst, builder, &regs[0],
+                        [&](Value *dst_val, Value *src_val) {
+                            return builder.CreateLShr(
+                                    dst_val,
+                                    is_alu64(inst) ?
+                                    builder.CreateURem(
+                                            src_val,
+                                            builder.getInt64(
+                                                    64)) :
+                                    builder.CreateURem(
+                                            src_val,
+                                            builder.getInt32(
+                                                    32)));
+                        });
+
+                break;
+            }
+
+                // NOT
+            case EBPF_OP_NEG:
+            case EBPF_OP_NEG64: {
+                Value *dst_val =
+                        emitLoadALUDest(inst, &regs[0], builder, false);
+                Value *result = builder.CreateNeg(dst_val);
+                emitStoreALUResult(inst, &regs[0], builder, result);
+                break;
+            }
+
+                // MOD
+            case EBPF_OP_MOD64_IMM:
+            case EBPF_OP_MOD_IMM:
+            case EBPF_OP_MOD64_REG:
+            case EBPF_OP_MOD_REG: {
+                emitALUWithDstAndSrc(
+                        inst, builder, &regs[0],
+                        [&](Value *dst_val, Value *src_val) {
+                            // Keep dst untouched is src is
+                            // zero
+                            return builder.CreateSelect(
+                                    builder.CreateICmpEQ(
+                                            src_val,
+                                            is_alu64(inst) ?
+                                            builder.getInt64(
+                                                    0) :
+                                            builder.getInt32(
+                                                    0)),
+                                    dst_val,
+                                    builder.CreateURem(dst_val,
+                                                       src_val));
+                        });
+
+                break;
+            }
+
+                // XOR
+            case EBPF_OP_XOR64_IMM:
+            case EBPF_OP_XOR_IMM:
+            case EBPF_OP_XOR64_REG:
+            case EBPF_OP_XOR_REG: {
+                emitALUWithDstAndSrc(
+                        inst, builder, &regs[0],
+                        [&](Value *dst_val, Value *src_val) {
+                            return builder.CreateXor(dst_val,
+                                                     src_val);
+                        });
+                break;
+            }
+
+                // MOV
+            case EBPF_OP_MOV64_IMM:
+            case EBPF_OP_MOV_IMM:
+            case EBPF_OP_MOV64_REG:
+            case EBPF_OP_MOV_REG: {
+                Value *src_val =
+                        emitLoadALUSource(inst, &regs[0], builder);
+                Value *result = src_val;
+                emitStoreALUResult(inst, &regs[0], builder, result);
+                break;
+            }
+
+                // ARSH
+            case EBPF_OP_ARSH64_IMM:
+            case EBPF_OP_ARSH_IMM:
+            case EBPF_OP_ARSH64_REG:
+            case EBPF_OP_ARSH_REG: {
+                emitALUWithDstAndSrc(
+                        inst, builder, &regs[0],
+                        [&](Value *dst_val, Value *src_val) {
+                            return builder.CreateAShr(
+                                    dst_val,
+                                    is_alu64(inst) ?
+                                    builder.CreateURem(
+                                            src_val,
+                                            builder.getInt64(
+                                                    64)) :
+                                    builder.CreateURem(
+                                            src_val,
+                                            builder.getInt32(
+                                                    32)));
+                        });
+                break;
+            }
+
+                /*************************
+                 * LOAD/STORE
+                 *************************/
+
+            case EBPF_OP_LE:
+            case EBPF_OP_BE: {
+                Value *dst_val =
+                        emitLoadALUDest(inst, &regs[0], builder, true);
+                Value *result;
+                if (auto exp = emitALUEndianConversion(inst, builder,
+                                                       dst_val);
+                        exp) {
+                    result = exp.get();
+                } else {
+                    return exp.takeError();
+                }
+                emitStoreALUResult(inst, &regs[0], builder, result);
+                break;
+            }
+
+                // ST and STX
+                //  Only supports mode = 0x60
+            case EBPF_OP_STB:
+            case EBPF_OP_STXB: {
+                emitStore(inst, builder, &regs[0], builder.getInt8Ty());
+                break;
+            }
+            case EBPF_OP_STH:
+            case EBPF_OP_STXH: {
+                emitStore(inst, builder, &regs[0],
+                          builder.getInt16Ty());
+                break;
+            }
+            case EBPF_OP_STW:
+            case EBPF_OP_STXW: {
+                emitStore(inst, builder, &regs[0],
+                          builder.getInt32Ty());
+                break;
+            }
+            case EBPF_OP_STDW:
+            case EBPF_OP_STXDW: {
+                emitStore(inst, builder, &regs[0],
+                          builder.getInt64Ty());
+                break;
+            }
+
+                // LDX
+                // Only supports mode=0x60
+            case EBPF_OP_LDXB: {
+                emitLoadX(builder, &regs[0], inst, builder.getInt8Ty());
+                break;
+            }
+            case EBPF_OP_LDXH: {
+                emitLoadX(builder, &regs[0], inst,
+                          builder.getInt16Ty());
+                break;
+            }
+            case EBPF_OP_LDXW: {
+                emitLoadX(builder, &regs[0], inst,
+                          builder.getInt32Ty());
+                break;
+            }
+            case EBPF_OP_LDXDW: {
+                emitLoadX(builder, &regs[0], inst,
+                          builder.getInt64Ty());
+                break;
+            }
+
+                // LD
+                // Keep compatiblity to ubpf
+            case EBPF_OP_LDDW: {
+                // ubpf only supports EBPF_OP_LDDW in instruction class
+                // EBPF_CLS_LD, so do us
+                auto size = inst.code & 0x18;
+                auto mode = inst.code & 0xe0;
+                if (size != 0x18 || mode != 0x00) {
+                    return llvm::make_error<llvm::StringError>(
+                            "Unsupported size (" +
+                            std::to_string(size) +
+                            ") or mode (" +
+                            std::to_string(mode) +
+                            ") for non-standard load operations",
+                            llvm::inconvertibleErrorCode());
+                }
+                if (pc + 1 >= insts.size()) {
+                    return llvm::make_error<llvm::StringError>(
+                            "Loaded LDDW at pc=" +
+                            std::to_string(pc) +
+                            " which requires an extra pseudo instruction, but it's the last instruction",
+                            llvm::inconvertibleErrorCode());
+                }
+                const auto &nextInst = insts[pc + 1];
+                if (nextInst.code || nextInst.dst_reg ||
+                    nextInst.src_reg || nextInst.off) {
+                    return llvm::make_error<llvm::StringError>(
+                            "Loaded LDDW at pc=" +
+                            std::to_string(pc) +
+                            " which requires an extra pseudo instruction, but the next instruction is not a legal one",
+                            llvm::inconvertibleErrorCode());
+                }
+                uint64_t val =
+                        (uint64_t)((uint32_t)inst.imm) |
+                        (((uint64_t)((uint32_t)nextInst.imm)) << 32);
+                pc++;
+
+                SPDLOG_DEBUG("Load LDDW val= {} part1={:x} part2={:x}",
+                             val, (uint64_t)inst.imm,
+                             (uint64_t)nextInst.imm);
+                if (inst.src_reg == 0) {
+                    SPDLOG_DEBUG("Emit lddw helper 0 at pc {}", pc);
+                    builder.CreateStore(builder.getInt64(val),
+                                        regs[inst.dst_reg]);
+                } else if (inst.src_reg == 1) {
+                    SPDLOG_DEBUG(
+                            "Emit lddw helper 1 (map_by_fd) at pc {}, imm={}, patched at compile time",
+                            pc, inst.imm);
+                    if (map_by_fd) {
+                        builder.CreateStore(
+                                builder.getInt64(map_by_fd(
+                                        inst.imm)),
+                                regs[inst.dst_reg]);
+                    } else {
+                        SPDLOG_INFO(
+                                "map_by_fd is called in eBPF code, but is not provided, will use the default behavior");
+                        // Default: input value
+                        builder.CreateStore(
+                                builder.getInt64(
+                                        (int64_t)inst.imm),
+                                regs[inst.dst_reg]);
+                    }
+
+                } else if (inst.src_reg == 2) {
+                    SPDLOG_DEBUG(
+                            "Emit lddw helper 2 (map_by_fd + map_val) at pc {}, imm1={}, imm2={}",
+                            pc, inst.imm, nextInst.imm);
+                    uint64_t mapPtr;
+                    if (map_by_fd) {
+                        mapPtr = map_by_fd(inst.imm);
+                    } else {
+                        SPDLOG_INFO(
+                                "map_by_fd is called in eBPF code, but is not provided, will use the default behavior");
+                        // Default: returns the input value
+                        mapPtr = (uint64_t)inst.imm;
+                    }
+                    if (patch_map_val_at_compile_time) {
+                        SPDLOG_DEBUG(
+                                "map_val is required to be evaluated at compile time");
+                        if (!map_val) {
+                            return llvm::make_error<
+                                    llvm::StringError>(
+                                    "map_val is not provided, unable to compile",
+                                    llvm::inconvertibleErrorCode());
+                        }
+                        builder.CreateStore(
+                                builder.getInt64(
+                                        map_val(mapPtr) +
+                                        nextInst.imm),
+                                regs[inst.dst_reg]);
+                    } else {
+                        SPDLOG_DEBUG(
+                                "map_val is required to be evaluated at runtime, emitting calling instructions");
+
+                        if (auto itrMapVal = lddwHelper.find(
+                                    LDDW_HELPER_MAP_VAL);
+                                itrMapVal != lddwHelper.end()) {
+                            auto retMapVal = builder.CreateCall(
+                                    lddwHelperWithUint64,
+                                    itrMapVal->second,
+                                    { builder.getInt64(
+                                            mapPtr) });
+                            auto finalRet = builder.CreateAdd(
+                                    retMapVal,
+                                    builder.getInt64(
+                                            nextInst.imm));
+                            builder.CreateStore(
+                                    finalRet,
+                                    regs[inst.dst_reg]);
+
+                        } else {
+                            return llvm::make_error<
+                                    llvm::StringError>(
+                                    "Using lddw helper 2, which requires map_val to be defined.",
+                                    llvm::inconvertibleErrorCode());
+                        }
+                    }
+
+                } else if (inst.src_reg == 3) {
+                    SPDLOG_DEBUG(
+                            "Emit lddw helper 3 (var_addr) at pc {}, imm1={}",
+                            pc, inst.imm);
+                    if (!var_addr) {
+                        return llvm::make_error<
+                                llvm::StringError>(
+                                "var_addr is not provided, unable to compile",
+                                llvm::inconvertibleErrorCode());
+                    }
+                    builder.CreateStore(
+                            builder.getInt64(
+                                    var_addr(inst.imm)),
+                            regs[inst.dst_reg]);
+                } else if (inst.src_reg == 4) {
+                    SPDLOG_DEBUG(
+                            "Emit lddw helper 4 (code_addr) at pc {}, imm1={}",
+                            pc, inst.imm);
+                    if (!code_addr) {
+                        return llvm::make_error<
+                                llvm::StringError>(
+                                "code_addr is not provided, unable to compile",
+                                llvm::inconvertibleErrorCode());
+                    }
+                    builder.CreateStore(
+                            builder.getInt64(
+                                    code_addr(inst.imm)),
+                            regs[inst.dst_reg]);
+                } else if (inst.src_reg == 5) {
+                    SPDLOG_DEBUG(
+                            "Emit lddw helper 4 (map_by_idx) at pc {}, imm1={}",
+                            pc, inst.imm);
+                    if (map_by_idx) {
+                        builder.CreateStore(
+                                builder.getInt64(map_by_idx(
+                                        inst.imm)),
+                                regs[inst.dst_reg]);
+                    } else {
+                        SPDLOG_INFO(
+                                "map_by_idx is called in eBPF code, but it's not provided, will use the default behavior");
+                        // Default: returns the input value
+                        builder.CreateStore(
+                                builder.getInt64(
+                                        (int64_t)inst.imm),
+                                regs[inst.dst_reg]);
+                    }
+
+                } else if (inst.src_reg == 6) {
+                    SPDLOG_DEBUG(
+                            "Emit lddw helper 6 (map_by_idx + map_val) at pc {}, imm1={}, imm2={}",
+                            pc, inst.imm, nextInst.imm);
+
+                    uint64_t mapPtr;
+                    if (map_by_idx) {
+                        mapPtr = map_by_idx(inst.imm);
+                    } else {
+                        SPDLOG_DEBUG(
+                                "map_by_idx is called in eBPF code, but it's not provided, will use the default behavior");
+                        // Default: returns the input value
+                        mapPtr = (int64_t)inst.imm;
+                    }
+                    if (patch_map_val_at_compile_time) {
+                        SPDLOG_DEBUG(
+                                "Required to evaluate map_val at compile time");
+                        if (map_val) {
+                            builder.CreateStore(
+                                    builder.getInt64(
+                                            map_val(
+                                                    mapPtr) +
+                                            nextInst.imm),
+                                    regs[inst.dst_reg]);
+                        } else {
+                            return llvm::make_error<
+                                    llvm::StringError>(
+                                    "map_val is not provided, unable to compile",
+                                    llvm::inconvertibleErrorCode());
+                        }
+
+                    } else {
+                        SPDLOG_DEBUG(
+                                "Required to evaluate map_val at runtime time");
+                        if (auto itrMapVal = lddwHelper.find(
+                                    LDDW_HELPER_MAP_VAL);
+                                itrMapVal != lddwHelper.end()) {
+                            auto retMapVal = builder.CreateCall(
+                                    lddwHelperWithUint64,
+                                    itrMapVal->second,
+                                    { builder.getInt64(
+                                            mapPtr) });
+                            auto finalRet = builder.CreateAdd(
+                                    retMapVal,
+                                    builder.getInt64(
+                                            nextInst.imm));
+                            builder.CreateStore(
+                                    finalRet,
+                                    regs[inst.dst_reg]);
+
+                        } else {
+                            return llvm::make_error<
+                                    llvm::StringError>(
+                                    "Using lddw helper 6, which requires map_val",
+                                    llvm::inconvertibleErrorCode());
+                        }
+                    }
+                }
+                break;
+            }
+
+                /*************************
+                 * JUMP
+                 *************************/
+
+                // JMP
+            case EBPF_OP_JA: {
+                if (auto dst = loadJmpDstBlock(pc, inst, instBlocks);
+                        dst) {
+                    builder.CreateBr(dst.get());
+
+                } else {
+                    return dst.takeError();
+                }
+                break;
+            }
+
+                // Call helper or local function
+            case EBPF_OP_CALL:
+
+                // Work around for clang producing instructions
+                // that we don't support
+            case EBPF_OP_CALL | 0x8: {
+
+                // Call local function
+                if (inst.src_reg == 0x1) {
+                    // Each call will put five 8byte integer
+                    // onto the call stack the most top one
+                    // is the return address, followed by
+                    // r6, r7, r8, r9
+                    Value *nextPos = builder.CreateAdd(
+                            builder.CreateLoad(builder.getInt64Ty(),callItemCnt),
+                            builder.getInt64(5)
+                    );
+
+                    builder.CreateStore(nextPos, callItemCnt);
+                    assert(localFuncRetBlks.find(pc + 1) != localFuncRetBlks.end());
+
+                    // Store returning address
+                    builder.CreateStore(
+                            localFuncRetBlks[pc + 1],
+                            builder.CreateGEP(
+                                    builder.getPtrTy(),
+                                    callStack,
+                                    { builder.CreateSub(
+                                            nextPos,
+                                            builder.getInt64(1)
+                                    )}
+                            )
+                    );
+
+                    // Store callee-saved registers
+                    for (int i = 6; i <= 9; i++) {
+                        builder.CreateStore(
+                                builder.CreateLoad(
+                                        builder.getInt64Ty(),
+                                        regs[i]),
+                                builder.CreateGEP(
+                                        builder.getInt64Ty(),
+                                        callStack,
+                                        { builder.CreateSub(
+                                                nextPos,
+                                                builder.getInt64(i -4)
+                                        )}
+                                )
+                        );
+                    }
+
+                    // Move data stack
+                    // r10 -= stackSize
+                    builder.CreateStore(
+                            builder.CreateSub(
+                                    builder.CreateLoad(
+                                            builder.getInt64Ty(),
+                                            regs[10]
+                                    ),
+                                    builder.getInt64(STACK_SIZE)
+                            ),
+                            regs[10]
+                    );
+
+                    if (auto dstBlk = loadCallDstBlock(pc, inst,
+                                                       instBlocks);
+                            dstBlk) {
+                        builder.CreateBr(dstBlk.get());
+                    } else {
+                        return dstBlk.takeError();
+                    }
+
+                } else {
+                    if (auto exp = emitExtFuncCall(
+                                builder, inst, extFunc, &regs[0],
+                                helperFuncTy, pc, exitBlock);
+                            !exp) {
+                        return exp.takeError();
+                    }
+                }
+
+                break;
+            }
+            case EBPF_OP_EXIT: {
+                builder.CreateCondBr(
+                        builder.CreateICmpEQ(
+                                builder.CreateLoad(builder.getInt64Ty(),
+                                                   callItemCnt),
+                                builder.getInt64(0)),
+                        exitBlock, localRetBlock);
+                break;
+            }
+
+            case EBPF_OP_JEQ32_IMM:
+            case EBPF_OP_JEQ_IMM:
+            case EBPF_OP_JEQ32_REG:
+            case EBPF_OP_JEQ_REG: {
+                HANDLE_ERR(emitCondJmpWithDstAndSrc(
+                        builder, pc, inst, instBlocks, &regs[0],
+                        [&](auto dst, auto src) {
+                            return builder.CreateICmpEQ(dst, src);
+                        }));
+                break;
+            }
+
+            case EBPF_OP_JGT32_IMM:
+            case EBPF_OP_JGT_IMM:
+            case EBPF_OP_JGT32_REG:
+            case EBPF_OP_JGT_REG: {
+                HANDLE_ERR(emitCondJmpWithDstAndSrc(
+                        builder, pc, inst, instBlocks, &regs[0],
+                        [&](auto dst, auto src) {
+                            return builder.CreateICmpUGT(dst, src);
+                        }));
+                break;
+            }
+            case EBPF_OP_JGE32_IMM:
+            case EBPF_OP_JGE_IMM:
+            case EBPF_OP_JGE32_REG:
+            case EBPF_OP_JGE_REG: {
+                HANDLE_ERR(emitCondJmpWithDstAndSrc(
+                        builder, pc, inst, instBlocks, &regs[0],
+                        [&](auto dst, auto src) {
+                            return builder.CreateICmpUGE(dst, src);
+                        }));
+                break;
+            }
+            case EBPF_OP_JSET32_IMM:
+            case EBPF_OP_JSET_IMM:
+            case EBPF_OP_JSET32_REG:
+            case EBPF_OP_JSET_REG: {
+                if (auto ret =
+                            localJmpDstAndNextBlk(pc, inst, instBlocks);
+                        ret) {
+                    auto [dstBlk, nextBlk] = ret.get();
+                    auto [src, dst, zero] =
+                            emitJmpLoadSrcAndDstAndZero(
+                                    inst, &regs[0], builder);
+                    builder.CreateCondBr(
+                            builder.CreateICmpNE(
+                                    builder.CreateAnd(dst, src),
+                                    zero),
+                            dstBlk, nextBlk);
+                } else {
+                    return ret.takeError();
+                }
+
+                break;
+            }
+            case EBPF_OP_JNE32_IMM:
+            case EBPF_OP_JNE_IMM:
+            case EBPF_OP_JNE32_REG:
+            case EBPF_OP_JNE_REG: {
+                HANDLE_ERR(emitCondJmpWithDstAndSrc(
+                        builder, pc, inst, instBlocks, &regs[0],
+                        [&](auto dst, auto src) {
+                            return builder.CreateICmpNE(dst, src);
+                        }));
+                break;
+            }
+            case EBPF_OP_JSGT32_IMM:
+            case EBPF_OP_JSGT_IMM:
+            case EBPF_OP_JSGT32_REG:
+            case EBPF_OP_JSGT_REG: {
+                HANDLE_ERR(emitCondJmpWithDstAndSrc(
+                        builder, pc, inst, instBlocks, &regs[0],
+                        [&](auto dst, auto src) {
+                            return builder.CreateICmpSGT(dst, src);
+                        }));
+                break;
+            }
+            case EBPF_OP_JSGE32_IMM:
+            case EBPF_OP_JSGE_IMM:
+            case EBPF_OP_JSGE32_REG:
+            case EBPF_OP_JSGE_REG: {
+                HANDLE_ERR(emitCondJmpWithDstAndSrc(
+                        builder, pc, inst, instBlocks, &regs[0],
+                        [&](auto dst, auto src) {
+                            return builder.CreateICmpSGE(dst, src);
+                        }));
+                break;
+            }
+            case EBPF_OP_JLT32_IMM:
+            case EBPF_OP_JLT_IMM:
+            case EBPF_OP_JLT32_REG:
+            case EBPF_OP_JLT_REG: {
+                HANDLE_ERR(emitCondJmpWithDstAndSrc(
+                        builder, pc, inst, instBlocks, &regs[0],
+                        [&](auto dst, auto src) {
+                            return builder.CreateICmpULT(dst, src);
+                        }));
+                break;
+            }
+            case EBPF_OP_JLE32_IMM:
+            case EBPF_OP_JLE_IMM:
+            case EBPF_OP_JLE32_REG:
+            case EBPF_OP_JLE_REG: {
+                HANDLE_ERR(emitCondJmpWithDstAndSrc(
+                        builder, pc, inst, instBlocks, &regs[0],
+                        [&](auto dst, auto src) {
+                            return builder.CreateICmpULE(dst, src);
+                        }));
+                break;
+            }
+            case EBPF_OP_JSLT32_IMM:
+            case EBPF_OP_JSLT_IMM:
+            case EBPF_OP_JSLT32_REG:
+            case EBPF_OP_JSLT_REG: {
+                HANDLE_ERR(emitCondJmpWithDstAndSrc(
+                        builder, pc, inst, instBlocks, &regs[0],
+                        [&](auto dst, auto src) {
+                            return builder.CreateICmpSLT(dst, src);
+                        }));
+                break;
+            }
+            case EBPF_OP_JSLE32_IMM:
+            case EBPF_OP_JSLE_IMM:
+            case EBPF_OP_JSLE32_REG:
+            case EBPF_OP_JSLE_REG: {
+                HANDLE_ERR(emitCondJmpWithDstAndSrc(
+                        builder, pc, inst, instBlocks, &regs[0],
+                        [&](auto dst, auto src) {
+                            return builder.CreateICmpSLE(dst, src);
+                        }));
+                break;
+            }
+            case EBPF_ATOMIC_OPCODE_32:
+            case EBPF_ATOMIC_OPCODE_64: {
+                switch (inst.imm) {
+                    case EBPF_ATOMIC_ADD:
+                    case EBPF_ATOMIC_ADD | EBPF_FETCH: {
+                        emitAtomicBinOp(
+                                builder, &regs[0],
+                                llvm::AtomicRMWInst::BinOp::Add, inst,
+                                inst.code == EBPF_ATOMIC_OPCODE_64,
+                                (inst.imm & EBPF_FETCH) == EBPF_FETCH);
+                        break;
+                    }
+
+                    case EBPF_ATOMIC_AND:
+                    case EBPF_ATOMIC_AND | EBPF_FETCH: {
+                        emitAtomicBinOp(
+                                builder, &regs[0],
+                                llvm::AtomicRMWInst::BinOp::And, inst,
+                                inst.code == EBPF_ATOMIC_OPCODE_64,
+                                (inst.imm & EBPF_FETCH) == EBPF_FETCH);
+                        break;
+                    }
+
+                    case EBPF_ATOMIC_OR:
+                    case EBPF_ATOMIC_OR | EBPF_FETCH: {
+                        emitAtomicBinOp(
+                                builder, &regs[0],
+                                llvm::AtomicRMWInst::BinOp::Or, inst,
+                                inst.code == EBPF_ATOMIC_OPCODE_64,
+                                (inst.imm & EBPF_FETCH) == EBPF_FETCH);
+                        break;
+                    }
+                    case EBPF_ATOMIC_XOR:
+                    case EBPF_ATOMIC_XOR | EBPF_FETCH: {
+                        emitAtomicBinOp(
+                                builder, &regs[0],
+                                llvm::AtomicRMWInst::BinOp::Xor, inst,
+                                inst.code == EBPF_ATOMIC_OPCODE_64,
+                                (inst.imm & EBPF_FETCH) == EBPF_FETCH);
+                        break;
+                    }
+                    case EBPF_XCHG: {
+                        emitAtomicBinOp(
+                                builder, &regs[0],
+                                llvm::AtomicRMWInst::BinOp::Xchg, inst,
+                                inst.code == EBPF_ATOMIC_OPCODE_64,
+                                false);
+                        break;
+                    }
+                    case EBPF_CMPXCHG: {
+                        bool is64 = inst.code == EBPF_ATOMIC_OPCODE_64;
+                        auto vPtr = builder.CreateGEP(
+                                builder.getInt8Ty(),
+                                builder.CreateLoad(builder.getPtrTy(),
+                                                   regs[inst.dst_reg]),
+                                { builder.getInt64(inst.off) });
+                        auto beforeVal = builder.CreateLoad(
+                                is64 ? builder.getInt64Ty() :
+                                builder.getInt32Ty(),
+                                vPtr);
+                        builder.CreateAtomicCmpXchg(
+                                vPtr,
+                                builder.CreateLoad(
+                                        is64 ? builder.getInt64Ty() :
+                                        builder.getInt32Ty(),
+                                        regs[0]),
+                                builder.CreateLoad(
+                                        is64 ? builder.getInt64Ty() :
+                                        builder.getInt32Ty(),
+                                        regs[inst.src_reg]),
+                                MaybeAlign(0),
+                                AtomicOrdering::Monotonic,
+                                AtomicOrdering::Monotonic);
+                        builder.CreateStore(
+                                builder.CreateZExt(beforeVal,
+                                                   builder.getInt64Ty()),
+                                regs[0]);
+                        break;
+                    }
+                    default: {
+                        return llvm::make_error<llvm::StringError>(
+                                "Unsupported atomic operation: " +
+                                std::to_string(inst.imm),
+                                llvm::inconvertibleErrorCode());
+                    }
+                }
+                break;
+            }
+            default:
+                return llvm::make_error<llvm::StringError>(
+                        "Unsupported or illegal opcode: " +
+                        std::to_string(inst.code),
+                        llvm::inconvertibleErrorCode());
         }
     }
 
@@ -424,893 +1299,3 @@ Expected<ThreadSafeModule> context::generateModule(
     Other:
     EBPF_OP_EXIT, EBPF_OP_CALL
 */
-llvm::Expected<int>
-context::HandleInstruction(llvm::IRBuilder<> &builder, uint16_t pc, std::vector<Value *> regs, bool patch_map_val_at_compile_time, llvm::Value *callStack, llvm::Value *callItemCnt)
-{
-    auto inst = insts[pc];
-
-    switch (inst.code) {
-
-        /*************************
-         * ALU
-         *************************/
-
-        // ADD
-        case EBPF_OP_ADD64_IMM:
-        case EBPF_OP_ADD_IMM:
-        case EBPF_OP_ADD64_REG:
-        case EBPF_OP_ADD_REG: {
-            emitALUWithDstAndSrc(
-                    inst,
-                    builder,
-                    &regs[0],
-                    [&](Value *dst_val, Value *src_val) {
-                        return builder.CreateAdd(dst_val,src_val);
-                    }
-            );
-
-            break;
-        }
-
-            // SUB
-        case EBPF_OP_SUB64_IMM:
-        case EBPF_OP_SUB_IMM:
-        case EBPF_OP_SUB64_REG:
-        case EBPF_OP_SUB_REG: {
-            emitALUWithDstAndSrc(
-                    inst,
-                    builder,
-                    &regs[0],
-                    [&](Value *dst_val, Value *src_val) {
-                        return builder.CreateSub(dst_val,src_val);
-                    });
-            break;
-        }
-
-            // MUL
-        case EBPF_OP_MUL64_IMM:
-        case EBPF_OP_MUL_IMM:
-        case EBPF_OP_MUL64_REG:
-        case EBPF_OP_MUL_REG: {
-            emitALUWithDstAndSrc(
-                    inst, builder, &regs[0],
-                    [&](Value *dst_val, Value *src_val) {
-                        return builder.CreateBinOp(
-                                Instruction::BinaryOps::Mul,
-                                dst_val, src_val);
-                    });
-            break;
-        }
-
-            // DIV
-        case EBPF_OP_DIV64_IMM:
-        case EBPF_OP_DIV_IMM:
-        case EBPF_OP_DIV64_REG:
-        case EBPF_OP_DIV_REG: {
-            // Set dst to zero if trying to divide by zero
-
-            emitALUWithDstAndSrc(
-                    inst,
-                    builder,
-                    &regs[0],
-                    [&](Value *dst_val, Value *src_val) {
-
-                        bool is64 = (inst.code & 0x07) == EBPF_CLS_ALU64;
-
-                        auto result = builder.CreateSelect(
-                                builder.CreateICmpEQ(
-                                        src_val,
-                                        is64 ?
-                                        builder.getInt64(0) :
-                                        builder.getInt32(0)
-                                ),
-                                is_alu64(inst) ?
-                                builder.getInt64(0) :
-                                builder.getInt32(0),
-                                builder.CreateUDiv(dst_val,src_val));
-                        return result;
-                    }
-            );
-
-            break;
-        }
-
-            // OR
-        case EBPF_OP_OR64_IMM:
-        case EBPF_OP_OR_IMM:
-        case EBPF_OP_OR64_REG:
-        case EBPF_OP_OR_REG: {
-            emitALUWithDstAndSrc(
-                    inst,
-                    builder,
-                    &regs[0],
-                    [&](Value *dst_val, Value *src_val) {
-                        return builder.CreateOr(dst_val,src_val);
-                    }
-            );
-
-            break;
-        }
-
-            // AND
-        case EBPF_OP_AND64_IMM:
-        case EBPF_OP_AND_IMM:
-        case EBPF_OP_AND64_REG:
-        case EBPF_OP_AND_REG: {
-            emitALUWithDstAndSrc(
-                    inst,
-                    builder,
-                    &regs[0],
-                    [&](Value *dst_val, Value *src_val) {
-                        return builder.CreateAnd(dst_val,src_val);
-                    }
-            );
-
-            break;
-        }
-
-            // LSH
-        case EBPF_OP_LSH64_IMM:
-        case EBPF_OP_LSH_IMM:
-        case EBPF_OP_LSH64_REG:
-        case EBPF_OP_LSH_REG: {
-            emitALUWithDstAndSrc(
-                    inst, builder, &regs[0],
-                    [&](Value *dst_val, Value *src_val) {
-                        return builder.CreateShl(
-                                dst_val,
-                                is_alu64(inst) ?
-                                builder.CreateURem(
-                                        src_val,
-                                        builder.getInt64(
-                                                64)) :
-                                builder.CreateURem(
-                                        src_val,
-                                        builder.getInt32(
-                                                32)));
-                    });
-            break;
-        }
-
-            // RSH
-        case EBPF_OP_RSH64_IMM:
-        case EBPF_OP_RSH_IMM:
-        case EBPF_OP_RSH64_REG:
-        case EBPF_OP_RSH_REG: {
-            emitALUWithDstAndSrc(
-                    inst, builder, &regs[0],
-                    [&](Value *dst_val, Value *src_val) {
-                        return builder.CreateLShr(
-                                dst_val,
-                                is_alu64(inst) ?
-                                builder.CreateURem(
-                                        src_val,
-                                        builder.getInt64(
-                                                64)) :
-                                builder.CreateURem(
-                                        src_val,
-                                        builder.getInt32(
-                                                32)));
-                    });
-
-            break;
-        }
-
-            // NOT
-        case EBPF_OP_NEG:
-        case EBPF_OP_NEG64: {
-            Value *dst_val =
-                    emitLoadALUDest(inst, &regs[0], builder, false);
-            Value *result = builder.CreateNeg(dst_val);
-            emitStoreALUResult(inst, &regs[0], builder, result);
-            break;
-        }
-
-            // MOD
-        case EBPF_OP_MOD64_IMM:
-        case EBPF_OP_MOD_IMM:
-        case EBPF_OP_MOD64_REG:
-        case EBPF_OP_MOD_REG: {
-            emitALUWithDstAndSrc(
-                    inst, builder, &regs[0],
-                    [&](Value *dst_val, Value *src_val) {
-                        // Keep dst untouched is src is
-                        // zero
-                        return builder.CreateSelect(
-                                builder.CreateICmpEQ(
-                                        src_val,
-                                        is_alu64(inst) ?
-                                        builder.getInt64(
-                                                0) :
-                                        builder.getInt32(
-                                                0)),
-                                dst_val,
-                                builder.CreateURem(dst_val,
-                                                   src_val));
-                    });
-
-            break;
-        }
-
-            // XOR
-        case EBPF_OP_XOR64_IMM:
-        case EBPF_OP_XOR_IMM:
-        case EBPF_OP_XOR64_REG:
-        case EBPF_OP_XOR_REG: {
-            emitALUWithDstAndSrc(
-                    inst, builder, &regs[0],
-                    [&](Value *dst_val, Value *src_val) {
-                        return builder.CreateXor(dst_val,
-                                                 src_val);
-                    });
-            break;
-        }
-
-            // MOV
-        case EBPF_OP_MOV64_IMM:
-        case EBPF_OP_MOV_IMM:
-        case EBPF_OP_MOV64_REG:
-        case EBPF_OP_MOV_REG: {
-            Value *src_val =
-                    emitLoadALUSource(inst, &regs[0], builder);
-            Value *result = src_val;
-            emitStoreALUResult(inst, &regs[0], builder, result);
-            break;
-        }
-
-            // ARSH
-        case EBPF_OP_ARSH64_IMM:
-        case EBPF_OP_ARSH_IMM:
-        case EBPF_OP_ARSH64_REG:
-        case EBPF_OP_ARSH_REG: {
-            emitALUWithDstAndSrc(
-                    inst, builder, &regs[0],
-                    [&](Value *dst_val, Value *src_val) {
-                        return builder.CreateAShr(
-                                dst_val,
-                                is_alu64(inst) ?
-                                builder.CreateURem(
-                                        src_val,
-                                        builder.getInt64(
-                                                64)) :
-                                builder.CreateURem(
-                                        src_val,
-                                        builder.getInt32(
-                                                32)));
-                    });
-            break;
-        }
-
-            /*************************
-             * LOAD/STORE
-             *************************/
-
-        case EBPF_OP_LE:
-        case EBPF_OP_BE: {
-            Value *dst_val =
-                    emitLoadALUDest(inst, &regs[0], builder, true);
-            Value *result;
-            if (auto exp = emitALUEndianConversion(inst, builder,
-                                                   dst_val);
-                    exp) {
-                result = exp.get();
-            } else {
-                return exp.takeError();
-            }
-            emitStoreALUResult(inst, &regs[0], builder, result);
-            break;
-        }
-
-            // ST and STX
-            //  Only supports mode = 0x60
-        case EBPF_OP_STB:
-        case EBPF_OP_STXB: {
-            emitStore(inst, builder, &regs[0], builder.getInt8Ty());
-            break;
-        }
-        case EBPF_OP_STH:
-        case EBPF_OP_STXH: {
-            emitStore(inst, builder, &regs[0],
-                      builder.getInt16Ty());
-            break;
-        }
-        case EBPF_OP_STW:
-        case EBPF_OP_STXW: {
-            emitStore(inst, builder, &regs[0],
-                      builder.getInt32Ty());
-            break;
-        }
-        case EBPF_OP_STDW:
-        case EBPF_OP_STXDW: {
-            emitStore(inst, builder, &regs[0],
-                      builder.getInt64Ty());
-            break;
-        }
-
-            // LDX
-            // Only supports mode=0x60
-        case EBPF_OP_LDXB: {
-            emitLoadX(builder, &regs[0], inst, builder.getInt8Ty());
-            break;
-        }
-        case EBPF_OP_LDXH: {
-            emitLoadX(builder, &regs[0], inst,
-                      builder.getInt16Ty());
-            break;
-        }
-        case EBPF_OP_LDXW: {
-            emitLoadX(builder, &regs[0], inst,
-                      builder.getInt32Ty());
-            break;
-        }
-        case EBPF_OP_LDXDW: {
-            emitLoadX(builder, &regs[0], inst,
-                      builder.getInt64Ty());
-            break;
-        }
-
-            // LD
-            // Keep compatiblity to ubpf
-        case EBPF_OP_LDDW: {
-            // ubpf only supports EBPF_OP_LDDW in instruction class
-            // EBPF_CLS_LD, so do us
-            auto size = inst.code & 0x18;
-            auto mode = inst.code & 0xe0;
-            if (size != 0x18 || mode != 0x00) {
-                return llvm::make_error<llvm::StringError>(
-                        "Unsupported size (" +
-                        std::to_string(size) +
-                        ") or mode (" +
-                        std::to_string(mode) +
-                        ") for non-standard load operations",
-                        llvm::inconvertibleErrorCode());
-            }
-            if (pc + 1 >= insts.size()) {
-                return llvm::make_error<llvm::StringError>(
-                        "Loaded LDDW at pc=" +
-                        std::to_string(pc) +
-                        " which requires an extra pseudo instruction, but it's the last instruction",
-                        llvm::inconvertibleErrorCode());
-            }
-            const auto &nextInst = insts[pc + 1];
-            if (nextInst.code || nextInst.dst_reg ||
-                nextInst.src_reg || nextInst.off) {
-                return llvm::make_error<llvm::StringError>(
-                        "Loaded LDDW at pc=" +
-                        std::to_string(pc) +
-                        " which requires an extra pseudo instruction, but the next instruction is not a legal one",
-                        llvm::inconvertibleErrorCode());
-            }
-            uint64_t val =
-                    (uint64_t)((uint32_t)inst.imm) |
-                    (((uint64_t)((uint32_t)nextInst.imm)) << 32);
-            pc++;
-
-            SPDLOG_DEBUG("Load LDDW val= {} part1={:x} part2={:x}",
-                         val, (uint64_t)inst.imm,
-                         (uint64_t)nextInst.imm);
-            if (inst.src_reg == 0) {
-                SPDLOG_DEBUG("Emit lddw helper 0 at pc {}", pc);
-                builder.CreateStore(builder.getInt64(val),
-                                    regs[inst.dst_reg]);
-            } else if (inst.src_reg == 1) {
-                SPDLOG_DEBUG(
-                        "Emit lddw helper 1 (map_by_fd) at pc {}, imm={}, patched at compile time",
-                        pc, inst.imm);
-                if (map_by_fd) {
-                    builder.CreateStore(
-                            builder.getInt64(map_by_fd(
-                                    inst.imm)),
-                            regs[inst.dst_reg]);
-                } else {
-                    SPDLOG_INFO(
-                            "map_by_fd is called in eBPF code, but is not provided, will use the default behavior");
-                    // Default: input value
-                    builder.CreateStore(
-                            builder.getInt64(
-                                    (int64_t)inst.imm),
-                            regs[inst.dst_reg]);
-                }
-
-            } else if (inst.src_reg == 2) {
-                SPDLOG_DEBUG(
-                        "Emit lddw helper 2 (map_by_fd + map_val) at pc {}, imm1={}, imm2={}",
-                        pc, inst.imm, nextInst.imm);
-                uint64_t mapPtr;
-                if (map_by_fd) {
-                    mapPtr = map_by_fd(inst.imm);
-                } else {
-                    SPDLOG_INFO(
-                            "map_by_fd is called in eBPF code, but is not provided, will use the default behavior");
-                    // Default: returns the input value
-                    mapPtr = (uint64_t)inst.imm;
-                }
-                if (patch_map_val_at_compile_time) {
-                    SPDLOG_DEBUG(
-                            "map_val is required to be evaluated at compile time");
-                    if (!map_val) {
-                        return llvm::make_error<
-                                llvm::StringError>(
-                                "map_val is not provided, unable to compile",
-                                llvm::inconvertibleErrorCode());
-                    }
-                    builder.CreateStore(
-                            builder.getInt64(
-                                    map_val(mapPtr) +
-                                    nextInst.imm),
-                            regs[inst.dst_reg]);
-                } else {
-                    SPDLOG_DEBUG(
-                            "map_val is required to be evaluated at runtime, emitting calling instructions");
-
-                    if (auto itrMapVal = lddwHelper.find(
-                                LDDW_HELPER_MAP_VAL);
-                            itrMapVal != lddwHelper.end()) {
-                        auto retMapVal = builder.CreateCall(
-                                lddwHelperWithUint64,
-                                itrMapVal->second,
-                                { builder.getInt64(
-                                        mapPtr) });
-                        auto finalRet = builder.CreateAdd(
-                                retMapVal,
-                                builder.getInt64(
-                                        nextInst.imm));
-                        builder.CreateStore(
-                                finalRet,
-                                regs[inst.dst_reg]);
-
-                    } else {
-                        return llvm::make_error<
-                                llvm::StringError>(
-                                "Using lddw helper 2, which requires map_val to be defined.",
-                                llvm::inconvertibleErrorCode());
-                    }
-                }
-
-            } else if (inst.src_reg == 3) {
-                SPDLOG_DEBUG(
-                        "Emit lddw helper 3 (var_addr) at pc {}, imm1={}",
-                        pc, inst.imm);
-                if (!var_addr) {
-                    return llvm::make_error<
-                            llvm::StringError>(
-                            "var_addr is not provided, unable to compile",
-                            llvm::inconvertibleErrorCode());
-                }
-                builder.CreateStore(
-                        builder.getInt64(
-                                var_addr(inst.imm)),
-                        regs[inst.dst_reg]);
-            } else if (inst.src_reg == 4) {
-                SPDLOG_DEBUG(
-                        "Emit lddw helper 4 (code_addr) at pc {}, imm1={}",
-                        pc, inst.imm);
-                if (!code_addr) {
-                    return llvm::make_error<
-                            llvm::StringError>(
-                            "code_addr is not provided, unable to compile",
-                            llvm::inconvertibleErrorCode());
-                }
-                builder.CreateStore(
-                        builder.getInt64(
-                                code_addr(inst.imm)),
-                        regs[inst.dst_reg]);
-            } else if (inst.src_reg == 5) {
-                SPDLOG_DEBUG(
-                        "Emit lddw helper 4 (map_by_idx) at pc {}, imm1={}",
-                        pc, inst.imm);
-                if (map_by_idx) {
-                    builder.CreateStore(
-                            builder.getInt64(map_by_idx(
-                                    inst.imm)),
-                            regs[inst.dst_reg]);
-                } else {
-                    SPDLOG_INFO(
-                            "map_by_idx is called in eBPF code, but it's not provided, will use the default behavior");
-                    // Default: returns the input value
-                    builder.CreateStore(
-                            builder.getInt64(
-                                    (int64_t)inst.imm),
-                            regs[inst.dst_reg]);
-                }
-
-            } else if (inst.src_reg == 6) {
-                SPDLOG_DEBUG(
-                        "Emit lddw helper 6 (map_by_idx + map_val) at pc {}, imm1={}, imm2={}",
-                        pc, inst.imm, nextInst.imm);
-
-                uint64_t mapPtr;
-                if (map_by_idx) {
-                    mapPtr = map_by_idx(inst.imm);
-                } else {
-                    SPDLOG_DEBUG(
-                            "map_by_idx is called in eBPF code, but it's not provided, will use the default behavior");
-                    // Default: returns the input value
-                    mapPtr = (int64_t)inst.imm;
-                }
-                if (patch_map_val_at_compile_time) {
-                    SPDLOG_DEBUG(
-                            "Required to evaluate map_val at compile time");
-                    if (map_val) {
-                        builder.CreateStore(
-                                builder.getInt64(
-                                        map_val(
-                                                mapPtr) +
-                                        nextInst.imm),
-                                regs[inst.dst_reg]);
-                    } else {
-                        return llvm::make_error<
-                                llvm::StringError>(
-                                "map_val is not provided, unable to compile",
-                                llvm::inconvertibleErrorCode());
-                    }
-
-                } else {
-                    SPDLOG_DEBUG(
-                            "Required to evaluate map_val at runtime time");
-                    if (auto itrMapVal = lddwHelper.find(
-                                LDDW_HELPER_MAP_VAL);
-                            itrMapVal != lddwHelper.end()) {
-                        auto retMapVal = builder.CreateCall(
-                                lddwHelperWithUint64,
-                                itrMapVal->second,
-                                { builder.getInt64(
-                                        mapPtr) });
-                        auto finalRet = builder.CreateAdd(
-                                retMapVal,
-                                builder.getInt64(
-                                        nextInst.imm));
-                        builder.CreateStore(
-                                finalRet,
-                                regs[inst.dst_reg]);
-
-                    } else {
-                        return llvm::make_error<
-                                llvm::StringError>(
-                                "Using lddw helper 6, which requires map_val",
-                                llvm::inconvertibleErrorCode());
-                    }
-                }
-            }
-            break;
-        }
-
-            /*************************
-             * JUMP
-             *************************/
-
-            // JMP
-        case EBPF_OP_JA: {
-            if (auto dst = loadJmpDstBlock(pc, inst, instBlocks);
-                    dst) {
-                builder.CreateBr(dst.get());
-
-            } else {
-                return dst.takeError();
-            }
-            break;
-        }
-
-            // Call helper or local function
-        case EBPF_OP_CALL:
-
-            // Work around for clang producing instructions
-            // that we don't support
-        case EBPF_OP_CALL | 0x8: {
-
-            // Call local function
-            if (inst.src_reg == 0x1) {
-                // Each call will put five 8byte integer
-                // onto the call stack the most top one
-                // is the return address, followed by
-                // r6, r7, r8, r9
-                Value *nextPos = builder.CreateAdd(
-                        builder.CreateLoad(builder.getInt64Ty(),callItemCnt),
-                        builder.getInt64(5)
-                );
-
-                builder.CreateStore(nextPos, callItemCnt);
-                assert(localFuncRetBlks.find(pc + 1) != localFuncRetBlks.end());
-
-                // Store returning address
-                builder.CreateStore(
-                        localFuncRetBlks[pc + 1],
-                        builder.CreateGEP(
-                                builder.getPtrTy(),
-                                callStack,
-                                { builder.CreateSub(
-                                        nextPos,
-                                        builder.getInt64(1)
-                                )}
-                        )
-                );
-
-                // Store callee-saved registers
-                for (int i = 6; i <= 9; i++) {
-                    builder.CreateStore(
-                            builder.CreateLoad(
-                                    builder.getInt64Ty(),
-                                    regs[i]),
-                            builder.CreateGEP(
-                                    builder.getInt64Ty(),
-                                    callStack,
-                                    { builder.CreateSub(
-                                            nextPos,
-                                            builder.getInt64(i -4)
-                                    )}
-                            )
-                    );
-                }
-
-                // Move data stack
-                // r10 -= stackSize
-                builder.CreateStore(
-                        builder.CreateSub(
-                                builder.CreateLoad(
-                                        builder.getInt64Ty(),
-                                        regs[10]
-                                ),
-                                builder.getInt64(STACK_SIZE)
-                        ),
-                        regs[10]
-                );
-
-                if (auto dstBlk = loadCallDstBlock(pc, inst,
-                                                   instBlocks);
-                        dstBlk) {
-                    builder.CreateBr(dstBlk.get());
-                } else {
-                    return dstBlk.takeError();
-                }
-
-            } else {
-                if (auto exp = emitExtFuncCall(
-                            builder, inst, extFunc, &regs[0],
-                            helperFuncTy, pc, exitBlock);
-                        !exp) {
-                    return exp.takeError();
-                }
-            }
-
-            break;
-        }
-        case EBPF_OP_EXIT: {
-            builder.CreateCondBr(
-                    builder.CreateICmpEQ(
-                            builder.CreateLoad(builder.getInt64Ty(),
-                                               callItemCnt),
-                            builder.getInt64(0)),
-                    exitBlock, localRetBlock);
-            break;
-        }
-
-        case EBPF_OP_JEQ32_IMM:
-        case EBPF_OP_JEQ_IMM:
-        case EBPF_OP_JEQ32_REG:
-        case EBPF_OP_JEQ_REG: {
-            HANDLE_ERR(emitCondJmpWithDstAndSrc(
-                    builder, pc, inst, instBlocks, &regs[0],
-                    [&](auto dst, auto src) {
-                        return builder.CreateICmpEQ(dst, src);
-                    }));
-            break;
-        }
-
-        case EBPF_OP_JGT32_IMM:
-        case EBPF_OP_JGT_IMM:
-        case EBPF_OP_JGT32_REG:
-        case EBPF_OP_JGT_REG: {
-            HANDLE_ERR(emitCondJmpWithDstAndSrc(
-                    builder, pc, inst, instBlocks, &regs[0],
-                    [&](auto dst, auto src) {
-                        return builder.CreateICmpUGT(dst, src);
-                    }));
-            break;
-        }
-        case EBPF_OP_JGE32_IMM:
-        case EBPF_OP_JGE_IMM:
-        case EBPF_OP_JGE32_REG:
-        case EBPF_OP_JGE_REG: {
-            HANDLE_ERR(emitCondJmpWithDstAndSrc(
-                    builder, pc, inst, instBlocks, &regs[0],
-                    [&](auto dst, auto src) {
-                        return builder.CreateICmpUGE(dst, src);
-                    }));
-            break;
-        }
-        case EBPF_OP_JSET32_IMM:
-        case EBPF_OP_JSET_IMM:
-        case EBPF_OP_JSET32_REG:
-        case EBPF_OP_JSET_REG: {
-            if (auto ret =
-                        localJmpDstAndNextBlk(pc, inst, instBlocks);
-                    ret) {
-                auto [dstBlk, nextBlk] = ret.get();
-                auto [src, dst, zero] =
-                        emitJmpLoadSrcAndDstAndZero(
-                                inst, &regs[0], builder);
-                builder.CreateCondBr(
-                        builder.CreateICmpNE(
-                                builder.CreateAnd(dst, src),
-                                zero),
-                        dstBlk, nextBlk);
-            } else {
-                return ret.takeError();
-            }
-
-            break;
-        }
-        case EBPF_OP_JNE32_IMM:
-        case EBPF_OP_JNE_IMM:
-        case EBPF_OP_JNE32_REG:
-        case EBPF_OP_JNE_REG: {
-            HANDLE_ERR(emitCondJmpWithDstAndSrc(
-                    builder, pc, inst, instBlocks, &regs[0],
-                    [&](auto dst, auto src) {
-                        return builder.CreateICmpNE(dst, src);
-                    }));
-            break;
-        }
-        case EBPF_OP_JSGT32_IMM:
-        case EBPF_OP_JSGT_IMM:
-        case EBPF_OP_JSGT32_REG:
-        case EBPF_OP_JSGT_REG: {
-            HANDLE_ERR(emitCondJmpWithDstAndSrc(
-                    builder, pc, inst, instBlocks, &regs[0],
-                    [&](auto dst, auto src) {
-                        return builder.CreateICmpSGT(dst, src);
-                    }));
-            break;
-        }
-        case EBPF_OP_JSGE32_IMM:
-        case EBPF_OP_JSGE_IMM:
-        case EBPF_OP_JSGE32_REG:
-        case EBPF_OP_JSGE_REG: {
-            HANDLE_ERR(emitCondJmpWithDstAndSrc(
-                    builder, pc, inst, instBlocks, &regs[0],
-                    [&](auto dst, auto src) {
-                        return builder.CreateICmpSGE(dst, src);
-                    }));
-            break;
-        }
-        case EBPF_OP_JLT32_IMM:
-        case EBPF_OP_JLT_IMM:
-        case EBPF_OP_JLT32_REG:
-        case EBPF_OP_JLT_REG: {
-            HANDLE_ERR(emitCondJmpWithDstAndSrc(
-                    builder, pc, inst, instBlocks, &regs[0],
-                    [&](auto dst, auto src) {
-                        return builder.CreateICmpULT(dst, src);
-                    }));
-            break;
-        }
-        case EBPF_OP_JLE32_IMM:
-        case EBPF_OP_JLE_IMM:
-        case EBPF_OP_JLE32_REG:
-        case EBPF_OP_JLE_REG: {
-            HANDLE_ERR(emitCondJmpWithDstAndSrc(
-                    builder, pc, inst, instBlocks, &regs[0],
-                    [&](auto dst, auto src) {
-                        return builder.CreateICmpULE(dst, src);
-                    }));
-            break;
-        }
-        case EBPF_OP_JSLT32_IMM:
-        case EBPF_OP_JSLT_IMM:
-        case EBPF_OP_JSLT32_REG:
-        case EBPF_OP_JSLT_REG: {
-            HANDLE_ERR(emitCondJmpWithDstAndSrc(
-                    builder, pc, inst, instBlocks, &regs[0],
-                    [&](auto dst, auto src) {
-                        return builder.CreateICmpSLT(dst, src);
-                    }));
-            break;
-        }
-        case EBPF_OP_JSLE32_IMM:
-        case EBPF_OP_JSLE_IMM:
-        case EBPF_OP_JSLE32_REG:
-        case EBPF_OP_JSLE_REG: {
-            HANDLE_ERR(emitCondJmpWithDstAndSrc(
-                    builder, pc, inst, instBlocks, &regs[0],
-                    [&](auto dst, auto src) {
-                        return builder.CreateICmpSLE(dst, src);
-                    }));
-            break;
-        }
-        case EBPF_ATOMIC_OPCODE_32:
-        case EBPF_ATOMIC_OPCODE_64: {
-            switch (inst.imm) {
-                case EBPF_ATOMIC_ADD:
-                case EBPF_ATOMIC_ADD | EBPF_FETCH: {
-                    emitAtomicBinOp(
-                            builder, &regs[0],
-                            llvm::AtomicRMWInst::BinOp::Add, inst,
-                            inst.code == EBPF_ATOMIC_OPCODE_64,
-                            (inst.imm & EBPF_FETCH) == EBPF_FETCH);
-                    break;
-                }
-
-                case EBPF_ATOMIC_AND:
-                case EBPF_ATOMIC_AND | EBPF_FETCH: {
-                    emitAtomicBinOp(
-                            builder, &regs[0],
-                            llvm::AtomicRMWInst::BinOp::And, inst,
-                            inst.code == EBPF_ATOMIC_OPCODE_64,
-                            (inst.imm & EBPF_FETCH) == EBPF_FETCH);
-                    break;
-                }
-
-                case EBPF_ATOMIC_OR:
-                case EBPF_ATOMIC_OR | EBPF_FETCH: {
-                    emitAtomicBinOp(
-                            builder, &regs[0],
-                            llvm::AtomicRMWInst::BinOp::Or, inst,
-                            inst.code == EBPF_ATOMIC_OPCODE_64,
-                            (inst.imm & EBPF_FETCH) == EBPF_FETCH);
-                    break;
-                }
-                case EBPF_ATOMIC_XOR:
-                case EBPF_ATOMIC_XOR | EBPF_FETCH: {
-                    emitAtomicBinOp(
-                            builder, &regs[0],
-                            llvm::AtomicRMWInst::BinOp::Xor, inst,
-                            inst.code == EBPF_ATOMIC_OPCODE_64,
-                            (inst.imm & EBPF_FETCH) == EBPF_FETCH);
-                    break;
-                }
-                case EBPF_XCHG: {
-                    emitAtomicBinOp(
-                            builder, &regs[0],
-                            llvm::AtomicRMWInst::BinOp::Xchg, inst,
-                            inst.code == EBPF_ATOMIC_OPCODE_64,
-                            false);
-                    break;
-                }
-                case EBPF_CMPXCHG: {
-                    bool is64 = inst.code == EBPF_ATOMIC_OPCODE_64;
-                    auto vPtr = builder.CreateGEP(
-                            builder.getInt8Ty(),
-                            builder.CreateLoad(builder.getPtrTy(),
-                                               regs[inst.dst_reg]),
-                            { builder.getInt64(inst.off) });
-                    auto beforeVal = builder.CreateLoad(
-                            is64 ? builder.getInt64Ty() :
-                            builder.getInt32Ty(),
-                            vPtr);
-                    builder.CreateAtomicCmpXchg(
-                            vPtr,
-                            builder.CreateLoad(
-                                    is64 ? builder.getInt64Ty() :
-                                    builder.getInt32Ty(),
-                                    regs[0]),
-                            builder.CreateLoad(
-                                    is64 ? builder.getInt64Ty() :
-                                    builder.getInt32Ty(),
-                                    regs[inst.src_reg]),
-                            MaybeAlign(0),
-                            AtomicOrdering::Monotonic,
-                            AtomicOrdering::Monotonic);
-                    builder.CreateStore(
-                            builder.CreateZExt(beforeVal,
-                                               builder.getInt64Ty()),
-                            regs[0]);
-                    break;
-                }
-                default: {
-                    return llvm::make_error<llvm::StringError>(
-                            "Unsupported atomic operation: " +
-                            std::to_string(inst.imm),
-                            llvm::inconvertibleErrorCode());
-                }
-            }
-            break;
-        }
-        default:
-            return llvm::make_error<llvm::StringError>(
-                    "Unsupported or illegal opcode: " +
-                    std::to_string(inst.code),
-                    llvm::inconvertibleErrorCode());
-    }
-
-    return 0;
-}

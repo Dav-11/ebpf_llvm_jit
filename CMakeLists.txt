@@ -42,7 +42,6 @@ add_executable(ebpf_llvm_jit
         src/jit/code_gen.h
         src/helpers/helper.cpp
         src/helpers/helper.h
-        src/include/helpers_impl.c
         src/include/helpers_impl.h
         src/utils/bo.h
 )

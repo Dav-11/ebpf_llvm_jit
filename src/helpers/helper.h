@@ -7,7 +7,6 @@
 
 
 #include <string>
-#include "../jit/vm.h"
 
 namespace ebpf_llvm_jit::helpers{
 
