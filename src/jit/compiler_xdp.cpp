@@ -2,7 +2,7 @@
 // Created by root on 8/17/24.
 //
 
-#include "context.h"
+#include "compiler_xdp.h"
 #include "spdlog/spdlog.h"
 
 #include "llvm/IR/Module.h"
@@ -84,7 +84,7 @@ static void optimizeModule(llvm::Module &M)
 extern "C" void __aeabi_unwind_cpp_pr1();
 #endif
 
-context::context() : ext_funcs(MAX_EXT_FUNCS)
+CompilerXDP::CompilerXDP() : ext_funcs(MAX_EXT_FUNCS)
 {
     using namespace llvm;
     int zero = 0;
@@ -102,13 +102,15 @@ context::context() : ext_funcs(MAX_EXT_FUNCS)
     compiling = std::make_unique<pthread_spinlock_t>();
     pthread_spin_init(compiling.get(), PTHREAD_PROCESS_PRIVATE);
 }
-
-std::string context::get_error_message()
+CompilerXDP::~CompilerXDP()
+{
+    pthread_spin_destroy(compiling.get());
+}
+std::string CompilerXDP::get_error_message()
 {
     return error_msg;
 }
-
-int context::load_code(const void *code, size_t code_len)
+int CompilerXDP::load_code(const void *code, size_t code_len)
 {
     if (code_len % 8 != 0) {
         error_msg = "Code len must be a multiple of 8";
@@ -118,43 +120,60 @@ int context::load_code(const void *code, size_t code_len)
     insts.assign((ebpf_inst *)code,(ebpf_inst *)code + code_len / 8);
     return 0;
 }
-
-context::~context()
+std::vector<uint8_t> CompilerXDP::do_aot_compile(bool print_ir)
 {
-    pthread_spin_destroy(compiling.get());
-}
 
-std::vector<uint8_t> context::do_aot_compile(
-            const std::vector<std::string> &extFuncNames,
-            const std::vector<std::string> &lddwHelpers,
-            bool print_ir,
-            std::string cpu,
-            std::string cpu_features,
-            std::string target_triple)
-{
+    std::vector<std::string> extFuncNames, lddwHelpers;
+
+    for (uint32_t i = 0; i < std::size(ext_funcs); i++) {
+
+        if (ext_funcs[i].has_value()) {
+
+            SPDLOG_INFO("Found ext_fn non empty: {} -> {}", i, ext_funcs[i]->name);
+
+#if LLVM_VERSION_MAJOR >= 16
+            extFuncNames.emplace_back(ext_func_sym(i));
+#else
+            extFuncNames.push_back(utils::ext_func_sym(i));
+#endif
+        }
+    }
+
+    const auto tryDefineLddwHelper = [&](const char *name, void *func) {
+        if (func) {
+#if LLVM_VERSION_MAJOR >= 16
+            lddwHelpers.emplace_back(name);
+#else
+            lddwHelpers.emplace_back(name);
+#endif
+        }
+    };
+
+    // Only map_val will have a chance to be called at runtime
+    tryDefineLddwHelper(LDDW_HELPER_MAP_VAL, (void *)map_val);
+
     SPDLOG_INFO("AOT: start");
     if (auto module = generateModule(extFuncNames, lddwHelpers, false); module) {
 
-        auto defaultTargetTriple = llvm::sys::getDefaultTargetTriple();
-        if ((target_triple != "default") && (target_triple != "")) {
-            defaultTargetTriple = target_triple;
-        }
+        auto targetTriple = "riscv64-unknown-elf";
+        auto cpu = "generic"; // or a specific RISC-V CPU like 'rocket'
+        auto features = "+f,+d";
 
-        SPDLOG_INFO("AOT: target triple: {}", defaultTargetTriple);
+        SPDLOG_INFO("AOT: target triple: {}", targetTriple);
         return module->withModuleDo([&](auto &module) -> std::vector<uint8_t> {
             if (print_ir) {
                 module.print(llvm::errs(), nullptr);
             }
 
-            // disabled otherwise it would eliminate calls to helpers
+            // TODO: disabled otherwise it would eliminate calls to helpers
             //optimizeModule(module);
 
             // Set the target triple for the module
-            module.setTargetTriple(defaultTargetTriple);
+            module.setTargetTriple(targetTriple);
 
             std::string error;
             auto target = llvm::TargetRegistry::lookupTarget(
-                    defaultTargetTriple, error);
+                    targetTriple, error);
 
             if (!target) {
                 SPDLOG_ERROR("AOT: Failed to get local target: {}", error);
@@ -163,9 +182,9 @@ std::vector<uint8_t> context::do_aot_compile(
 
             // Create target machine with hardware floating-point support (RV64G with FD extensions)
             llvm::TargetMachine *targetMachine = target->createTargetMachine(
-                    defaultTargetTriple, cpu, cpu_features, llvm::TargetOptions(), llvm::Reloc::PIC_);
+                    targetTriple, cpu, features, llvm::TargetOptions(), llvm::Reloc::PIC_);
 
-            SPDLOG_INFO("Creating LLVM target machine using [target_machine={}, cpu={}, features={}]", defaultTargetTriple, cpu, cpu_features);
+            SPDLOG_INFO("Creating LLVM target machine using [target_machine={}, cpu={}, features={}]", targetTriple, cpu, features);
 
             if (!targetMachine) {
                 SPDLOG_ERROR("Unable to create target machine");
@@ -211,43 +230,7 @@ std::vector<uint8_t> context::do_aot_compile(
         throw std::runtime_error("Unable to generate llvm module");
     }
 }
-
-std::vector<uint8_t> context::do_aot_compile(bool print_ir, const std::string cpu, const std::string cpu_features, const std::string target_triple)
-{
-    std::vector<std::string> extNames, lddwNames;
-
-    for (uint32_t i = 0; i < std::size(ext_funcs); i++) {
-
-        if (ext_funcs[i].has_value()) {
-
-            SPDLOG_INFO("Found ext_fn non empty: {} -> {}", i, ext_funcs[i]->name);
-
-#if LLVM_VERSION_MAJOR >= 16
-            extNames.emplace_back(ext_func_sym(i));
-#else
-            extNames.push_back(utils::ext_func_sym(i));
-#endif
-        }
-    }
-
-    const auto tryDefineLddwHelper = [&](const char *name, void *func) {
-        if (func) {
-#if LLVM_VERSION_MAJOR >= 16
-            lddwNames.emplace_back(name);
-#else
-            lddwNames.emplace_back(name);
-#endif
-        }
-    };
-
-    // Only map_val will have a chance to be called at runtime
-    tryDefineLddwHelper(LDDW_HELPER_MAP_VAL, (void *)map_val);
-
-    return this->do_aot_compile(extNames, lddwNames, print_ir, cpu, cpu_features, target_triple);
-}
-
-
-int context::register_external_function(size_t index, const std::string &name, void *fn)
+int CompilerXDP::register_external_function(size_t index, const std::string &name, void *fn)
 {
     if (index >= ext_funcs.size()) {
         error_msg = "Index too large";
@@ -264,4 +247,5 @@ int context::register_external_function(size_t index, const std::string &name, v
     ext_funcs[index] = external_function(name, fn);
     return 0;
 }
+
 

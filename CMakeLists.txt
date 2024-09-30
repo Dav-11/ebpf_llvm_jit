@@ -33,8 +33,9 @@ include_directories(${SPDLOG_INCLUDE_DIRS})
 add_executable(ebpf_llvm_jit
         main.cpp
         src/ebpf_inst.h
-        src/jit/context.cpp
-        src/jit/context.h
+        src/jit/compiler_xdp.cpp
+        src/jit/compiler_xdp.h
+        src/jit/program.h
         src/jit/external_function.cpp
         src/jit/external_function.h
         src/jit/compiler.cpp
