@@ -157,7 +157,7 @@ std::vector<uint8_t> CompilerXDP::do_aot_compile(bool print_ir)
 
         auto targetTriple = "riscv64-unknown-elf";
         auto cpu = "generic"; // or a specific RISC-V CPU like 'rocket'
-        auto features = "+f,+d";
+        auto features = ""; //"+f,+d";
 
         SPDLOG_INFO("AOT: target triple: {}", targetTriple);
         return module->withModuleDo([&](auto &module) -> std::vector<uint8_t> {

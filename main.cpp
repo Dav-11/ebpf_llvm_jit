@@ -14,6 +14,8 @@
 #include "src/helpers/helper.h"
 #include "src/include/helpers_impl.h"
 
+#define XDP_SECT "xdp"
+
 // bpf_printk
 uint64_t _bpf_helper_ext_0006(void *fmt, uint64_t fmt_size, ...)
 {
@@ -47,8 +49,7 @@ static int add_helpers(ebpf_llvm_jit::jit::CompilerXDP *ctx) {
 
     return 0;
 }
-
-static int build_xdp(bpf_program *prog, char *name)
+static int build_xdp(bpf_program *prog, const char *name, const std::filesystem::path &output)
 {
     ebpf_llvm_jit::jit::CompilerXDP ctx;
 
@@ -75,8 +76,9 @@ static int build_xdp(bpf_program *prog, char *name)
     ofs.write((const char *)result.data(), result.size());
 
     SPDLOG_INFO("Program {} written to {}", name, out_path.c_str());
-}
 
+    return 0;
+}
 static int build_ebpf_program(const std::string &ebpf_elf, const std::filesystem::path &output)
 {
     bpf_object *obj = bpf_object__open(ebpf_elf.c_str());
@@ -95,15 +97,10 @@ static int build_ebpf_program(const std::string &ebpf_elf, const std::filesystem
 
         int err = 0;
 
-        switch (sect) {
-
-            case "XDP":
-                err = build_xdp(prog);
-                break;
-
-            default:
-                SPDLOG_ERROR("BPF section type {} is unsupported", sect);
-                break;
+        if (strcmp(sect, "xdp") == 0) {
+            err = build_xdp(prog, name, output);
+        } else {
+            SPDLOG_ERROR("BPF section type \"{}\" is unsupported", sect);
         }
 
         if (err != 0) {
@@ -152,9 +149,9 @@ int main(int argc, const char **argv)
 
     if (program.is_subcommand_used(build_command)) {
         return build_ebpf_program(
-                build_command.get<std::string>("EBPF_ELF"),
-                build_command.get<std::string>("output"),
-                );
+            build_command.get<std::string>("EBPF_ELF"),
+            build_command.get<std::string>("output")
+        );
     }
 
     return 0;

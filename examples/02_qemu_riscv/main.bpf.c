@@ -49,7 +49,14 @@ int hello_world(struct xdp_md *ctx) {
 //        return XDP_PASS;
 //    }
 
-    return XDP_PASS;
+    int res = 0;
+    res += 7;
+
+    if (res > 6) {
+      res -= 6;
+    }
+
+    return res;
 }
 
 char LICENSE[] SEC("license") = "Dual BSD/GPL";

@@ -93,7 +93,7 @@ $(OUTPUT)/hello.elf: $(OUTPUT) $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu
 
 run: $(OUTPUT)/hello.elf
 	@echo "Ctrl-A C for QEMU console, then quit to exit"
-	qemu-system-riscv32 -nographic -serial mon:stdio -machine virt -bios $(OUTPUT)/hello.elf
+	qemu-system-riscv64 -nographic -serial mon:stdio -machine virt -bios $(OUTPUT)/hello.elf
 
 clean:
-	rm -f $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/hello.elf $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/hello_world.rv64.o
+	rm -f $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/hello.elf $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/hello_world.rv64.o $(OUTPUT)/main.bpf.o $(OUTPUT)/bpf_helpers.o
