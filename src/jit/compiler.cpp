@@ -203,6 +203,15 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
      *****************************************************/
     {
 
+        /*
+         * TODO:
+         * - create 11 regs + ra for calls
+         * - allocate STACK_SIZE + 10 (or real value if possible)
+         * - write args to r1,r2
+         * - allocate call_cnt (must be < MAX_LOCAL_FUNC_DEPTH)
+         * - start main
+         */
+
         // Create a BasicBlock named "setupBlock" as the entry point of the function.
         p.setupBlock = BasicBlock::Create(*ctx, "setupBlock", p.bpf_main);
         p.allBlocks.push_back(p.setupBlock);

@@ -28,7 +28,7 @@ struct data_t {
 SEC("xdp")
 int hello_world(struct xdp_md *ctx) {
 
-    bpf_printk("Hello World from XDP");
+//    bpf_printk("Hello World from XDP");
 
 //    struct data_t data;
 //    struct ethhdr eth;
