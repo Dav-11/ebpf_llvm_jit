@@ -17,14 +17,14 @@
 #define XDP_SECT "xdp"
 
 // bpf_printk
-uint64_t _bpf_helper_ext_0006(void *fmt, uint64_t fmt_size, ...)
+uint64_t _bpf_helper_ext_0006(const void *fmt, ...)
 {
     const char *fmt_str = (const char *)fmt;
     va_list args;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #pragma GCC diagnostic ignored "-Wvarargs"
-    va_start(args, fmt_str);
+    va_start(args, fmt);
     long ret = vprintf(fmt_str, args);
 #pragma GCC diagnostic pop
     va_end(args);

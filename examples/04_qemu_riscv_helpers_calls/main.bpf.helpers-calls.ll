@@ -39,7 +39,7 @@ bb_inst_0:                                        ; preds = %setupBlock
   br label %bb_inst_4
 
 bb_inst_4:                                        ; preds = %bb_inst_0
-  store i64 2, ptr %r0, align 4
+  store i64 5, ptr %r0, align 4
   %8 = load i64, ptr %callItemCnt, align 4
   %9 = icmp eq i64 %8, 0
   br i1 %9, label %exitBlock, label %localFuncReturnBlock
