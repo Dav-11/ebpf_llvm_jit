@@ -6,7 +6,7 @@
 #include "qemu_rv_uart.h"
 
 // Function to handle format string and variable arguments
-uint64_t _bpf_helper_ext_0006(const char *fmt, ...) {
+uint64_t _bpf_helper_ext_0006(const char *fmt, uint64_t fmt_size, ...) {
 
     if(fmt == NULL) {
         uart_puts("called _bpf_helper_ext_0006 with empty pointer as fmt\n");
@@ -14,7 +14,7 @@ uint64_t _bpf_helper_ext_0006(const char *fmt, ...) {
     }
 
     va_list args;
-    va_start(args, fmt);
+    va_start(args, fmt_size);
 
     const char* format = (const char*)fmt;
     char buffer[32];
@@ -32,6 +32,9 @@ s0:
 
     if (format[i] == '\0')
         goto end;
+
+    if (i >= fmt_size)
+      goto end;
 
     uart_putc(format[i]);
     i++;

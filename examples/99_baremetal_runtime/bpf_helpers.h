@@ -22,6 +22,6 @@ struct xdp_md {
 
 int bpf_main(void* ctx, uint64_t size);
 
-uint64_t _bpf_helper_ext_0006(const char *fmt, ...);
+uint64_t _bpf_helper_ext_0006(const char *fmt, uint64_t fmt_size, ...);
 
 #endif //BAREMETAL_RV_BPF_HELPERS_H

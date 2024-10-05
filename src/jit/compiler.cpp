@@ -370,8 +370,6 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                     llvm::inconvertibleErrorCode());
         }
 
-        SPDLOG_INFO("INSN [CODE: {}, ]", inst.code);
-
         switch (inst.code) {
 
             /*************************
@@ -630,8 +628,7 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
 
             case EBPF_OP_LE:
             case EBPF_OP_BE: {
-                Value *dst_val =
-                        emitLoadALUDest(inst, &p.regs[0], builder, true);
+                Value *dst_val = emitLoadALUDest(inst, &p.regs[0], builder, true);
                 Value *result;
                 if (auto exp = emitALUEndianConversion(inst, builder,
                                                        dst_val);
@@ -941,6 +938,16 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                 // that we don't support
             case EBPF_OP_CALL | 0x8: {
 
+                // TODO: understand what ARGS is using
+                // TODO: ensure args are in .data / .rodata
+
+                SPDLOG_INFO("===== CALL INST ======");
+                SPDLOG_INFO("code: {}", inst.code);
+                SPDLOG_INFO("imm: {}", inst.imm);
+                SPDLOG_INFO("off: {}", inst.off);
+                SPDLOG_INFO("======================");
+
+
                 // Call local function
                 if (inst.src_reg == 0x1) {
                     // Each call will put five 8byte integer
@@ -998,8 +1005,7 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                             p.regs[10]
                     );
 
-                    if (auto dstBlk = loadCallDstBlock(pc, inst,
-                                                       p.instBlocks);
+                    if (auto dstBlk = loadCallDstBlock(pc, inst, p.instBlocks);
                             dstBlk) {
                         builder.CreateBr(dstBlk.get());
                     } else {
@@ -1050,6 +1056,7 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                         }));
                 break;
             }
+
             case EBPF_OP_JGE32_IMM:
             case EBPF_OP_JGE_IMM:
             case EBPF_OP_JGE32_REG:
@@ -1061,6 +1068,7 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                         }));
                 break;
             }
+
             case EBPF_OP_JSET32_IMM:
             case EBPF_OP_JSET_IMM:
             case EBPF_OP_JSET32_REG:
@@ -1083,6 +1091,7 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
 
                 break;
             }
+
             case EBPF_OP_JNE32_IMM:
             case EBPF_OP_JNE_IMM:
             case EBPF_OP_JNE32_REG:
@@ -1094,6 +1103,7 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                         }));
                 break;
             }
+
             case EBPF_OP_JSGT32_IMM:
             case EBPF_OP_JSGT_IMM:
             case EBPF_OP_JSGT32_REG:
@@ -1105,6 +1115,7 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                         }));
                 break;
             }
+
             case EBPF_OP_JSGE32_IMM:
             case EBPF_OP_JSGE_IMM:
             case EBPF_OP_JSGE32_REG:
@@ -1116,6 +1127,7 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                         }));
                 break;
             }
+
             case EBPF_OP_JLT32_IMM:
             case EBPF_OP_JLT_IMM:
             case EBPF_OP_JLT32_REG:
@@ -1127,6 +1139,7 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                         }));
                 break;
             }
+
             case EBPF_OP_JLE32_IMM:
             case EBPF_OP_JLE_IMM:
             case EBPF_OP_JLE32_REG:
@@ -1138,6 +1151,7 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                         }));
                 break;
             }
+
             case EBPF_OP_JSLT32_IMM:
             case EBPF_OP_JSLT_IMM:
             case EBPF_OP_JSLT32_REG:
@@ -1149,6 +1163,7 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                         }));
                 break;
             }
+
             case EBPF_OP_JSLE32_IMM:
             case EBPF_OP_JSLE_IMM:
             case EBPF_OP_JSLE32_REG:
@@ -1160,6 +1175,7 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                         }));
                 break;
             }
+
             case EBPF_ATOMIC_OPCODE_32:
             case EBPF_ATOMIC_OPCODE_64: {
                 switch (inst.imm) {
@@ -1248,6 +1264,7 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                 }
                 break;
             }
+
             default:
                 return llvm::make_error<llvm::StringError>(
                         "Unsupported or illegal opcode: " +

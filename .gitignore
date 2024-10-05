@@ -25,6 +25,8 @@ libbpf-prefix
 *.gch
 CPackConfig.cmake
 CPackSourceConfig.cmake
+.cache
+build
 
 # build targets
 libbpf

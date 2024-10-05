@@ -150,7 +150,7 @@ SECTIONS
         SHORT(0x6472);
         SHORT(0x0461);
         SHORT(0x7270);
-        
+
         SHORT(0x6100);
         SHORT(0x000c);
         SHORT(0x0001);

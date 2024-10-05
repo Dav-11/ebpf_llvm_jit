@@ -7,6 +7,9 @@
 
 #include <bpf/libbpf.h>
 
+#include <llvm/Object/ObjectFile.h>
+#include <llvm/Object/ELF.h>
+
 #include "spdlog/spdlog.h"
 #include "spdlog/cfg/env.h"
 #include "argparse/argparse.hpp"
@@ -16,21 +19,51 @@
 
 #define XDP_SECT "xdp"
 
+using namespace llvm::object;
+using namespace llvm;
+
 // bpf_printk
-uint64_t _bpf_helper_ext_0006(const void *fmt, ...)
+uint64_t _bpf_helper_ext_0006(const void *fmt, uint64_t fmt_size, ...)
 {
     const char *fmt_str = (const char *)fmt;
     va_list args;
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-nonliteral"
 #pragma GCC diagnostic ignored "-Wvarargs"
-    va_start(args, fmt);
+    va_start(args, fmt_str);
     long ret = vprintf(fmt_str, args);
 #pragma GCC diagnostic pop
     va_end(args);
     return 0;
 }
 
+// Assume this is called to load and access the eBPF object file
+std::string loadRodata(const std::string &sourceFile) {
+    // Load the source object file
+    Expected<OwningBinary<ObjectFile>> binaryOrErr = ObjectFile::createObjectFile(sourceFile);
+    if (!binaryOrErr) {
+        llvm::errs() << "Failed to open source file\n";
+        return "";
+    }
+    ObjectFile &srcObj = *binaryOrErr->getBinary();
+
+    // Find the .rodata section
+    for (const SectionRef &section : srcObj.sections()) {
+        StringRef sectionName;
+        section.getName(sectionName);
+
+        if (sectionName == ".rodata") {
+            // Retrieve the contents of the .rodata section (string literals)
+            StringRef rodataContent;
+            section.getContents(rodataContent);
+
+            return rodataContent.str(); // Return the rodata content as a string
+        }
+    }
+
+    llvm::errs() << ".rodata section not found\n";
+    return "";
+}
 static int add_helpers(ebpf_llvm_jit::jit::CompilerXDP *ctx) {
     int err;
 
@@ -99,6 +132,9 @@ static int build_ebpf_program(const std::string &ebpf_elf, const std::filesystem
 
         if (strcmp(sect, "xdp") == 0) {
             err = build_xdp(prog, name, output);
+        } else if (strcmp(sect, ".rodata") == 0) {
+            SPDLOG_INFO("Processing .rodata section");
+            // Handle .rodata here
         } else {
             SPDLOG_ERROR("BPF section type \"{}\" is unsupported", sect);
         }

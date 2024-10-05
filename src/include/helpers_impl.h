@@ -11,6 +11,6 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
-uint64_t _bpf_helper_ext_0006(const void *fmt, ...);
+uint64_t _bpf_helper_ext_0006(const void *fmt, uint64_t fmt_size, ...);
 
 #endif //EBPF_LLVM_JIT_HELPERS_IMPL_H
