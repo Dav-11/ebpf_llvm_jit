@@ -1,9 +1,7 @@
 SHELL := /bin/bash
 LLVM_STRIP ?= llvm-strip
 ARCH := $(shell uname -m | sed 's/x86_64/x86/' | sed 's/aarch64/arm64/' | sed 's/ppc64le/powerpc/' | sed 's/mips.*/mips/')
-EBPF_LLVM_JIT := ../../cmake-build-debug/ebpf_llvm_jit
-
-EBPF_LLVM_JIT := ../../cmake-build-debug/ebpf_llvm_jit
+EBPF_LLVM_JIT := ../../ebpf_llvm_jit
 
 # Source directories
 LIBBPF_SRC := $(abspath ../third_party/bpftool/libbpf/src)

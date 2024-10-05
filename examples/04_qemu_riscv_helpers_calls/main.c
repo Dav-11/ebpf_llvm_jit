@@ -21,16 +21,15 @@ extern uint32_t my_data_region_end;
  **************************/
 
 #define E_END_REGION -3
-
 #define BUF_SIZE 50
 
 int load_packet_from_mem(void *region_start, void *region_end, struct xdp_md *packet)
 {
     packet->data = (__u32) (region_start - my_data_region_start);
 
-    __u32 *prev = (__u64 *)region_start;
-    __u32 *curr = (__u64 *)region_start;
-    __u32 pkt_end = 0;
+    __u64 *prev = (__u64 *)region_start;
+    __u64 *curr = (__u64 *)region_start;
+    __u64 pkt_end = 0;
 
     int count = 0;
 
@@ -39,7 +38,7 @@ int load_packet_from_mem(void *region_start, void *region_end, struct xdp_md *pa
     // Scan the memory for a 64-bit sequence of all 1s
     while (*curr != 0xFFFFFFFF || *prev != 0xFFFFFFFF) {
 
-      if (curr == region_end) {
+        if (curr == region_end) {
 
             uart_puts("hit mem zone end\n");
             return E_END_REGION;
@@ -103,8 +102,7 @@ void main() {
 
     int ret = bpf_main(&packet, sizeof(packet));
 
-    strcpy(str, "XDP result: %d\n");
-    printf(str, ret);
+    printf("XDP result: %d\n", ret);
 
     while (1); // Loop forever to prevent program from ending
 }
