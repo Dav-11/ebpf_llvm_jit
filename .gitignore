@@ -23,6 +23,12 @@ _deps
 CMakeUserPresets.json
 libbpf-prefix
 *.gch
+CPackConfig.cmake
+CPackSourceConfig.cmake
+
+# build targets
+libbpf
+ebpf_llvm_jit
 
 !examples/**/Makefile
 

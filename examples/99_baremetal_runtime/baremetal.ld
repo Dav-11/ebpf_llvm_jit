@@ -49,30 +49,50 @@ SECTIONS
             	0x0030:  07fe ce2e 0000 0101 080a 4dec a5bc 452b  ..........M...E+
             	0x0040:  6901                                     i.
         */
-        LONG(0x000c29aa);   /* 32-bit value */
-        LONG(0xfdff00e0);
-        LONG(0x4c680654);
-        LONG(0x08004500);
 
-        LONG(0x00340000);
-        LONG(0x40004006);
-        LONG(0xb3c6c0a8);
-        LONG(0x02b9c0a8);
+        SHORT(0x000c);
+        SHORT(0x29aa);
+        SHORT(0xfdff);
+        SHORT(0x00e0);
+        SHORT(0x4c68);
+        SHORT(0x0654);
+        SHORT(0x0800);
+        SHORT(0x4500);
 
-        LONG(0x02f4cff8);
-        LONG(0x0016e37f);
-        LONG(0xedf3a990);
-        LONG(0x2caa8010);
+        SHORT(0x0034);
+        SHORT(0x0000);
+        SHORT(0x4000);
+        SHORT(0x4006);
+        SHORT(0xb3c6);
+        SHORT(0xc0a8);
+        SHORT(0x02b9);
+        SHORT(0xc0a8);
 
-        LONG(0x07fece2e);
-        LONG(0x00000101);
-        LONG(0x080a4dec);
-        LONG(0xa5bc452b);
+        SHORT(0x02f4);
+        SHORT(0xcff8);
+        SHORT(0x0016);
+        SHORT(0xe37f);
+        SHORT(0xedf3);
+        SHORT(0xa990);
+        SHORT(0x2caa);
+        SHORT(0x8010);
 
-        LONG(0x69010000);
+        SHORT(0x07fe);
+        SHORT(0xce2e);
+        SHORT(0x0000);
+        SHORT(0x0101);
+        SHORT(0x080a);
+        SHORT(0x4dec);
+        SHORT(0xa5bc);
+        SHORT(0x452b);
+
+        SHORT(0x6901);
 
         /* CUSTOM END SEQ */
-        QUAD(0xFFFFFFFFFFFFFFFF);
+        SHORT(0xFFFF);
+        SHORT(0xFFFF);
+        SHORT(0xFFFF);
+        SHORT(0xFFFF);
 
         /*
             ---- PKT 2 ----
@@ -86,25 +106,60 @@ SECTIONS
             	0x0050:  6100 000c 0001                           a.....
          */
 
-        QUAD(0x48a98a3452ba000c);
-        QUAD(0x29aafdff08004500);
+        SHORT(0x48a9);
+        SHORT(0x8a34);
+        SHORT(0x52ba);
+        SHORT(0x000c);
+        SHORT(0x29aa);
+        SHORT(0xfdff);
+        SHORT(0x0800);
+        SHORT(0x4500);
 
-        QUAD(0x0048135c40004011);
-        QUAD(0x539dc0a802f40808);
+        SHORT(0x0048);
+        SHORT(0x135c);
+        SHORT(0x4000);
+        SHORT(0x4011);
+        SHORT(0x539d);
+        SHORT(0xc0a8);
+        SHORT(0x02f4);
+        SHORT(0x0808);
 
-        QUAD(0x080886e300350034);
-        QUAD(0xd3f1583601000001);
+        SHORT(0x0808);
+        SHORT(0x86e3);
+        SHORT(0x0035);
+        SHORT(0x0034);
+        SHORT(0xd3f1);
+        SHORT(0x5836);
+        SHORT(0x0100);
+        SHORT(0x0001);
 
-        QUAD(0x0000000000000331);
-        QUAD(0x3835013203313638);
+        SHORT(0x0000);
+        SHORT(0x0000);
+        SHORT(0x0000);
+        SHORT(0x0331);
+        SHORT(0x3835);
+        SHORT(0x0132);
+        SHORT(0x0331);
+        SHORT(0x3638);
 
-        QUAD(0x0331393207696e2d);
-        QUAD(0x6164647204617270);
-
-        QUAD(0x6100000c00010000);
+        SHORT(0x0331);
+        SHORT(0x3932);
+        SHORT(0x0769);
+        SHORT(0x6e2d);
+        SHORT(0x6164);
+        SHORT(0x6472);
+        SHORT(0x0461);
+        SHORT(0x7270);
+        
+        SHORT(0x6100);
+        SHORT(0x000c);
+        SHORT(0x0001);
 
         /* CUSTOM END SEQ */
-        QUAD(0xFFFFFFFFFFFFFFFF);
+        SHORT(0xFFFF);
+        SHORT(0xFFFF);
+        SHORT(0xFFFF);
+        SHORT(0xFFFF);
     }
     my_data_region_end = .; /* declare the end of the data region */
 
