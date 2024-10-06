@@ -8,15 +8,42 @@
 // Function to handle format string and variable arguments
 uint64_t _bpf_helper_ext_0006(const char *fmt, uint64_t fmt_size, ...) {
 
-    if(fmt == NULL) {
-        uart_puts("called _bpf_helper_ext_0006 with empty pointer as fmt\n");
-        return 0;
+    char *fmt_str = fmt;
+    char *fmt_relocated = (void *)(&rodata_bpf_start) + (uint64_t) fmt;
+    uint64_t rodata_len = (void *)(&rodata_bpf_end) - (void *)(&rodata_bpf_start);
+
+    // printf("FMT:\t\t0x%16x\n", fmt);
+    // printf("RELOCATED:\t0x%16x\n", fmt_relocated);
+    // printf("rodata_start:\t0x%16x\n", (void *)(&rodata_bpf_start));
+    // printf("rodata_end:\t0x%16x\n", (void *)(&rodata_bpf_end));
+    // printf("rodata_len: %d\n", rodata_len);
+
+    // char *str = (void *)(&rodata_bpf_start);
+    // for(int i = 0; i < rodata_len; i++) {
+    //     printf("%2x", str[i]);
+    // }
+
+    // uart_putc('\n');
+
+
+    if(fmt_str == NULL) {
+
+        // try to check if the string is into .rodata.bpf
+        if (fmt_relocated != NULL) {
+
+            fmt_str = fmt_relocated;
+            // printf("%s\n", fmt_relocated);
+        } else {
+
+            uart_puts("called _bpf_helper_ext_0006 with empty pointer as fmt\n");
+            return 0;
+        }
     }
 
     va_list args;
     va_start(args, fmt_size);
 
-    const char* format = (const char*)fmt;
+    const char* format = (const char*)fmt_str;
     char buffer[32];
     int len = 0;
     int i = 0;

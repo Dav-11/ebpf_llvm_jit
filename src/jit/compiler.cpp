@@ -150,7 +150,7 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
         bool patch_map_val_at_compile_time,
         const std::string &roData)
 {
-    SPDLOG_DEBUG("Generating module: patch_map_val_at_compile_time={}", patch_map_val_at_compile_time);
+    SPDLOG_INFO("Generating module: patch_map_val_at_compile_time={}", patch_map_val_at_compile_time);
     std::unique_ptr<llvm::LLVMContext> ctx = std::make_unique<LLVMContext>();
     auto jitModule = std::make_unique<Module>("bpf-jit", *ctx);
 
@@ -166,34 +166,37 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
     loadLddwHelpers(&p, ctx, jitModule, lddwHelpers);
     loadExtFuncs(&p, ctx, jitModule, extFuncNames);
 
+    SPDLOG_INFO("Injecting .rodata into module...");
+    SPDLOG_INFO(".rodata = {}", roData);
 
     {
-        // Create LLVM context and IR builder
-        llvm::IRBuilder<> builder(*ctx);
-
         // Convert roData string to an LLVM constant array
         llvm::Constant *roDataConstant = llvm::ConstantDataArray::getString(*ctx, roData, true);
 
+        // Ensure the jitModule is valid and roDataConstant is properly assigned
+        if (!roDataConstant) {
+            SPDLOG_ERROR("Failed to create ConstantDataArray for roData");
+            return llvm::make_error<llvm::StringError>("Failed to create ConstantDataArray", llvm::inconvertibleErrorCode());
+        }
+
         // Create a global variable for roData in the module
-        llvm::GlobalVariable roDataGV(
-                *jitModule,
-                roDataConstant->getType(),
-                true,
-                llvm::GlobalValue::ExternalLinkage,
-                roDataConstant,
-                "rodata"
-                //nullptr,
-                //ThreadLocalMode = NotThreadLocal,
-                //Optional<unsigned> AddressSpace = None,
-                //bool isExternallyInitialized = false
+        auto *roDataGV = new llvm::GlobalVariable(
+            *jitModule, 
+            roDataConstant->getType(), 
+            true, // isConstant
+            llvm::GlobalValue::PrivateLinkage, 
+            roDataConstant, 
+            "roData"
         );
 
         // Set the section for the global variable to .rodata
-        roDataGV.setSection(".rodata");
+        roDataGV->setSection(".rodata.bpf");
 
-        // Optionally align the data (e.g., 1-byte alignment)
-        roDataGV.setAlignment(llvm::Align(1));
+        // Optionally align the data (e.g., 4-byte alignment)
+        roDataGV->setAlignment(llvm::Align(1));
     }
+
+    SPDLOG_INFO("Injected .rodata [OK]");
 
     /*****************************************************
      * Split the blocks

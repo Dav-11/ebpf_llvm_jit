@@ -7,6 +7,7 @@
 
 #include <stdarg.h>
 #include <stdint.h>
+#include "memory.h"
 
 typedef uint32_t __u32;
 typedef uint64_t __u64;

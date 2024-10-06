@@ -155,7 +155,9 @@ std::vector<uint8_t> CompilerXDP::do_aot_compile(bool print_ir, const std::strin
     tryDefineLddwHelper(LDDW_HELPER_MAP_VAL, (void *)map_val);
 
     SPDLOG_INFO("AOT: start");
-    if (auto module = generateModule(extFuncNames, lddwHelpers, false); module) {
+    if (auto module = generateModule(extFuncNames, lddwHelpers, false, roData); module) {
+
+        SPDLOG_INFO("AOT: generated module");
 
         auto targetTriple = "riscv64-unknown-elf";
         auto cpu = "generic"; // or a specific RISC-V CPU like 'rocket'
@@ -247,5 +249,3 @@ int CompilerXDP::register_external_function(size_t index, const std::string &nam
     ext_funcs[index] = external_function(name, fn);
     return 0;
 }
-
-

@@ -30,11 +30,22 @@ Options:
 
 ### Procedure
 To compile the project use cmake:
-- run in root folder to generate build files and dependencies
+1. Create a `build` folder
 ```shell
-cmake .
+mkdir build
 ```
-- then run to actually build the project
+
+2. Enter `build` folder
+```shell
+cd build
+```
+
+3. run cmake to generate build files and dependencies
+```shell
+cmake ..
+```
+
+4. then run make to actually build the project
 ```shell
 make
 ```

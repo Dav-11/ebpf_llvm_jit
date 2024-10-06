@@ -22,19 +22,17 @@ SECTIONS
     /* Do the same for ".bss", ".rodata", and ".data". */
     .bss : { *(.bss); *(.bss.*) }
     .data : { *(.data); *(.data.*) } /* Stack is placed here */
+    
+    /* Declare a symbol marking the start of the .rodata.bpf section */
+    . = ALIGN(1);
+    rodata_bpf_start = .;
+    .rodata.bpf : { 
+        *(.rodata.bpf) 
+    }
+    rodata_bpf_end = .;
+
     .rodata : { *(.rodata); *(.rodata.*) }
 
-    /* Place my_data_region after .data section
-     *
-     * C:
-     * extern uint32_t my_data_region;
-     * uint32_t first_value = *(uint32_t *)&my_data_region;
-     *
-     * ASM:
-     * la t0, my_data_region  # Load the address of my_data_region
-     * lw t1, 0(t0)           # Load the first 32-bit value (0xDEADBEEF)
-     *
-     */
     . = ALIGN(16);   /* Align to 16 bytes */
     my_data_region_start = .; /* Declare the start of the region */
     my_data_region : {

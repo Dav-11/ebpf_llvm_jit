@@ -4,39 +4,29 @@
 
 #include "../99_baremetal_runtime/qemu_rv_uart.h"
 #include "../99_baremetal_runtime/bpf_helpers.h"
+#include "../99_baremetal_runtime/memory.h"
 
-/**************************
- * MEM MAPPINGS
- **************************/
+
+#define BUF_SIZE 50
 
 // specific for RV64 qemu
 volatile char *uart_base = (volatile char *) UART0_BASE;
-
-// data region where pkt are stored
-extern uint32_t my_data_region_start;
-extern uint32_t my_data_region_end;
-
-/**************************
- * ERRORS
- **************************/
-
-#define E_END_REGION -3
-#define BUF_SIZE 50
 
 int load_packet_from_mem(void *region_start, void *region_end, struct xdp_md *packet)
 {
     packet->data = (__u32) (region_start - my_data_region_start);
 
-    __u64 *prev = (__u64 *)region_start;
-    __u64 *curr = (__u64 *)region_start;
+    //unsigned char *prev = (unsigned char *)region_start;
+    uint16_t *curr = (uint16_t *)region_start;
     __u64 pkt_end = 0;
 
     int count = 0;
+    int end_seq_cnt = 0;
 
     uart_puts("++++ Packet content ++++\n");
 
     // Scan the memory for a 64-bit sequence of all 1s
-    while (*curr != 0xFFFFFFFF || *prev != 0xFFFFFFFF) {
+    do {
 
         if (curr == region_end) {
 
@@ -44,20 +34,30 @@ int load_packet_from_mem(void *region_start, void *region_end, struct xdp_md *pa
             return E_END_REGION;
         }
 
-        if (count % 4 == 0) {
-            uart_puts("\n");
+        if (*curr == 0xFFFF) {
+
+            end_seq_cnt++;
+            //uart_puts("\n[found 0xFF]\n");
         }
 
-        char str[20] = "[0x%8x]: 0x%8x\n";
-        printf(str, curr, *curr);
+        if (count % 16 == 0) {
+            printf("\n[0x%8x]:", curr);
+        }
 
-      prev = curr;
+        // if (count % 2 == 0) {
+        //     printf(" %4x", *curr);
+        // } else {
+        //     printf("%4x", *curr);
+        // }
+
+        printf(" %4x", *curr);
+
         curr++;
         count++;
-    }
+    } while (end_seq_cnt < 4);
 
     // Set pkt_end to the address right before the 64-bit sequence of 1s
-    packet->data_end = (__u32)(prev - my_data_region_start);
+    packet->data_end = (__u32)(curr - my_data_region_start);
 
     // set values to default
     packet->ingress_ifindex = 99;
@@ -65,7 +65,7 @@ int load_packet_from_mem(void *region_start, void *region_end, struct xdp_md *pa
     packet->egress_ifindex = 0;
     packet->data_meta = 0;
 
-    uart_puts("\n++++ END +++++\n\n");
+    uart_puts("\n\n++++ END +++++\n\n");
 }
 
 

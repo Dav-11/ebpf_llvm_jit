@@ -80,7 +80,7 @@ namespace ebpf_llvm_jit::jit {
         int load_code(const void *code, size_t code_len);
         int register_external_function(size_t index, const std::string &name, void *fn);
 
-        std::vector<uint8_t> do_aot_compile(bool print_ir = false);
+        std::vector<uint8_t> do_aot_compile(bool print_ir, const std::string &roData);
     };
 }
 

@@ -21,6 +21,18 @@
 #define UARTLSR_THRE 0x20                 // UART Line Status Register Transmit Hold Register Empty bit
 #define UART0_FF_THR_EMPTY (UART0_LSR & UARTLSR_THRE)
 
+
+/**************************
+ * ERRORS
+ **************************/
+
+#define E_END_REGION -3
+
+
+/**************************
+ * FUNCTIONS
+ **************************/
+
 void uart_putc(char c);
 int uart_puts(const char *str);
 
