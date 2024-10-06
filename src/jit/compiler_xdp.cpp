@@ -157,33 +157,6 @@ std::vector<uint8_t> CompilerXDP::do_aot_compile(bool print_ir, const std::strin
     SPDLOG_INFO("AOT: start");
     if (auto module = generateModule(extFuncNames, lddwHelpers, false); module) {
 
-        // Create LLVM context and IR builder
-        llvm::LLVMContext *context = module->getContext().getContext(); //->getContext();
-        llvm::IRBuilder<> builder(*context);
-
-        // Convert roData string to an LLVM constant array
-        llvm::Constant *roDataConstant = llvm::ConstantDataArray::getString(*context, roData, true);
-
-        // Create a global variable for roData in the module
-        llvm::GlobalVariable roDataGV(
-            *module,
-            roDataConstant->getType(),
-            true,
-            llvm::GlobalValue::ExternalLinkage,
-            roDataConstant,
-            //"rodata",
-            //nullptr,
-            //ThreadLocalMode = NotThreadLocal,
-            //Optional<unsigned> AddressSpace = None,
-            //bool isExternallyInitialized = false
-        );
-
-        // Set the section for the global variable to .rodata
-        roDataGV.setSection(".rodata");
-
-        // Optionally align the data (e.g., 1-byte alignment)
-        roDataGV.setAlignment(llvm::Align(1));
-
         auto targetTriple = "riscv64-unknown-elf";
         auto cpu = "generic"; // or a specific RISC-V CPU like 'rocket'
         auto features = ""; //"+f,+d";
@@ -201,8 +174,7 @@ std::vector<uint8_t> CompilerXDP::do_aot_compile(bool print_ir, const std::strin
             module.setTargetTriple(targetTriple);
 
             std::string error;
-            auto target = llvm::TargetRegistry::lookupTarget(
-                    targetTriple, error);
+            auto target = llvm::TargetRegistry::lookupTarget(targetTriple, error);
 
             if (!target) {
                 SPDLOG_ERROR("AOT: Failed to get local target: {}", error);
@@ -221,8 +193,7 @@ std::vector<uint8_t> CompilerXDP::do_aot_compile(bool print_ir, const std::strin
             }
             module.setDataLayout(targetMachine->createDataLayout());
             llvm::SmallVector<char, 0> objStream;
-            std::unique_ptr<llvm::raw_svector_ostream> BOS =std::make_unique<llvm::raw_svector_ostream>(
-                            objStream);
+            std::unique_ptr<llvm::raw_svector_ostream> BOS =std::make_unique<llvm::raw_svector_ostream>(objStream);
 
             llvm::legacy::PassManager pass;
 // auto FileType = CGFT_ObjectFile;

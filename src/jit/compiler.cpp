@@ -147,7 +147,8 @@ void CompilerXDP::split_blocks(program_t *p) {
 Expected<ThreadSafeModule> CompilerXDP::generateModule(
         const std::vector<std::string> &extFuncNames,
         const std::vector<std::string> &lddwHelpers,
-        bool patch_map_val_at_compile_time)
+        bool patch_map_val_at_compile_time,
+        const std::string &roData)
 {
     SPDLOG_DEBUG("Generating module: patch_map_val_at_compile_time={}", patch_map_val_at_compile_time);
     std::unique_ptr<llvm::LLVMContext> ctx = std::make_unique<LLVMContext>();
@@ -164,6 +165,35 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
     // load ext functions
     loadLddwHelpers(&p, ctx, jitModule, lddwHelpers);
     loadExtFuncs(&p, ctx, jitModule, extFuncNames);
+
+
+    {
+        // Create LLVM context and IR builder
+        llvm::IRBuilder<> builder(*ctx);
+
+        // Convert roData string to an LLVM constant array
+        llvm::Constant *roDataConstant = llvm::ConstantDataArray::getString(*ctx, roData, true);
+
+        // Create a global variable for roData in the module
+        llvm::GlobalVariable roDataGV(
+                *jitModule,
+                roDataConstant->getType(),
+                true,
+                llvm::GlobalValue::ExternalLinkage,
+                roDataConstant,
+                "rodata"
+                //nullptr,
+                //ThreadLocalMode = NotThreadLocal,
+                //Optional<unsigned> AddressSpace = None,
+                //bool isExternallyInitialized = false
+        );
+
+        // Set the section for the global variable to .rodata
+        roDataGV.setSection(".rodata");
+
+        // Optionally align the data (e.g., 1-byte alignment)
+        roDataGV.setAlignment(llvm::Align(1));
+    }
 
     /*****************************************************
      * Split the blocks

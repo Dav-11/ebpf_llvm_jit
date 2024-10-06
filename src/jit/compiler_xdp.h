@@ -63,7 +63,8 @@ namespace ebpf_llvm_jit::jit {
         llvm::Expected<llvm::orc::ThreadSafeModule>
         generateModule(const std::vector<std::string> &extFuncNames,
                        const std::vector<std::string> &lddwHelpers,
-                       bool patch_map_val_at_compile_time);
+                       bool patch_map_val_at_compile_time,
+                       const std::string &roData);
 
 //        llvm::Expected<int>
 //        HandleInstruction(llvm::IRBuilder<> &builder, uint16_t pc, std::vector<llvm::Value *> regs, bool patch_map_val_at_compile_time,llvm::Value *callStack, llvm::Value *callItemCnt);
