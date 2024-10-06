@@ -33,9 +33,17 @@ SECTIONS
 
     .rodata : { *(.rodata); *(.rodata.*) }
 
-    . = ALIGN(16);   /* Align to 16 bytes */
+    . = ALIGN(1);   /* Align to 16 bytes */
     my_data_region_start = .; /* Declare the start of the region */
     my_data_region : {
+
+        /*
+            BYTE(0x0c);                 // 1 byte
+            SHORT(0x29aa);              // 2 bytes
+            WORD(0xfdff1234);           // 4 bytes (or LONG)
+            QUAD(0x123456789abcdef0);   // 8 bytes
+        */
+
 
         /*
             ---- PKT 1 ----
@@ -48,43 +56,85 @@ SECTIONS
             	0x0040:  6901                                     i.
         */
 
-        SHORT(0x000c);
-        SHORT(0x29aa);
-        SHORT(0xfdff);
-        SHORT(0x00e0);
-        SHORT(0x4c68);
-        SHORT(0x0654);
-        SHORT(0x0800);
-        SHORT(0x4500);
+        /* 000c 29aa fdff 00e0 4c68 0654 0800 4500 */
+        BYTE(0x00);
+        BYTE(0x0C);
+        BYTE(0x29);
+        BYTE(0xAA);
+        BYTE(0xFD);
+        BYTE(0xFF);
+        BYTE(0x00);
+        BYTE(0xE0);
+        BYTE(0x4C);
+        BYTE(0x68);
+        BYTE(0x06);
+        BYTE(0x54);
+        BYTE(0x08);
+        BYTE(0x00);
+        BYTE(0x45);
+        BYTE(0x00);
 
-        SHORT(0x0034);
-        SHORT(0x0000);
-        SHORT(0x4000);
-        SHORT(0x4006);
-        SHORT(0xb3c6);
-        SHORT(0xc0a8);
-        SHORT(0x02b9);
-        SHORT(0xc0a8);
 
-        SHORT(0x02f4);
-        SHORT(0xcff8);
-        SHORT(0x0016);
-        SHORT(0xe37f);
-        SHORT(0xedf3);
-        SHORT(0xa990);
-        SHORT(0x2caa);
-        SHORT(0x8010);
+        /* 0034 0000 4000 4006 b3c6 c0a8 02b9 c0a8 */
+        BYTE(0x00);
+        BYTE(0x34);
+        BYTE(0x00);
+        BYTE(0x00);
+        BYTE(0x40);
+        BYTE(0x00);
+        BYTE(0x40);
+        BYTE(0x06);
+        BYTE(0xB3);
+        BYTE(0xC6);
+        BYTE(0xC0);
+        BYTE(0xA8);
+        BYTE(0x02);
+        BYTE(0xB9);
+        BYTE(0xC0);
+        BYTE(0xA8);
 
-        SHORT(0x07fe);
-        SHORT(0xce2e);
-        SHORT(0x0000);
-        SHORT(0x0101);
-        SHORT(0x080a);
-        SHORT(0x4dec);
-        SHORT(0xa5bc);
-        SHORT(0x452b);
 
-        SHORT(0x6901);
+        /* 02f4 cff8 0016 e37f edf3 a990 2caa 8010 */
+        BYTE(0x02);
+        BYTE(0xF4);
+        BYTE(0xCF);
+        BYTE(0xF8);
+        BYTE(0x00);
+        BYTE(0x16);
+        BYTE(0xE3);
+        BYTE(0x7F);
+        BYTE(0xED);
+        BYTE(0xF3);
+        BYTE(0xA9);
+        BYTE(0x90);
+        BYTE(0x2C);
+        BYTE(0xAA);
+        BYTE(0x80);
+        BYTE(0x10);
+
+
+        /* 07fe ce2e 0000 0101 080a 4dec a5bc 452b */
+        BYTE(0x07);
+        BYTE(0xFE);
+        BYTE(0xCE);
+        BYTE(0x2E);
+        BYTE(0x00);
+        BYTE(0x00);
+        BYTE(0x01);
+        BYTE(0x01);
+        BYTE(0x08);
+        BYTE(0x0A);
+        BYTE(0x4D);
+        BYTE(0xEC);
+        BYTE(0xA5);
+        BYTE(0xBC);
+        BYTE(0x45);
+        BYTE(0x2B);
+
+
+        /* 6901 */
+        BYTE(0x69);
+        BYTE(0x01);
 
         /* CUSTOM END SEQ */
         SHORT(0xFFFF);
@@ -104,54 +154,109 @@ SECTIONS
             	0x0050:  6100 000c 0001                           a.....
          */
 
-        SHORT(0x48a9);
-        SHORT(0x8a34);
-        SHORT(0x52ba);
-        SHORT(0x000c);
-        SHORT(0x29aa);
-        SHORT(0xfdff);
-        SHORT(0x0800);
-        SHORT(0x4500);
+        /* 48a9 8a34 52ba 000c 29aa fdff 0800 4500 */
+        BYTE(0x48);
+        BYTE(0xA9);
+        BYTE(0x8A);
+        BYTE(0x34);
+        BYTE(0x52);
+        BYTE(0xBA);
+        BYTE(0x00);
+        BYTE(0x0C);
+        BYTE(0x29);
+        BYTE(0xAA);
+        BYTE(0xFD);
+        BYTE(0xFF);
+        BYTE(0x08);
+        BYTE(0x00);
+        BYTE(0x45);
+        BYTE(0x00);
 
-        SHORT(0x0048);
-        SHORT(0x135c);
-        SHORT(0x4000);
-        SHORT(0x4011);
-        SHORT(0x539d);
-        SHORT(0xc0a8);
-        SHORT(0x02f4);
-        SHORT(0x0808);
 
-        SHORT(0x0808);
-        SHORT(0x86e3);
-        SHORT(0x0035);
-        SHORT(0x0034);
-        SHORT(0xd3f1);
-        SHORT(0x5836);
-        SHORT(0x0100);
-        SHORT(0x0001);
+        /* 0048 135c 4000 4011 539d c0a8 02f4 0808 */
+        BYTE(0x00);
+        BYTE(0x48);
+        BYTE(0x13);
+        BYTE(0x5C);
+        BYTE(0x40);
+        BYTE(0x00);
+        BYTE(0x40);
+        BYTE(0x11);
+        BYTE(0x53);
+        BYTE(0x9D);
+        BYTE(0xC0);
+        BYTE(0xA8);
+        BYTE(0x02);
+        BYTE(0xF4);
+        BYTE(0x08);
+        BYTE(0x08);
 
-        SHORT(0x0000);
-        SHORT(0x0000);
-        SHORT(0x0000);
-        SHORT(0x0331);
-        SHORT(0x3835);
-        SHORT(0x0132);
-        SHORT(0x0331);
-        SHORT(0x3638);
 
-        SHORT(0x0331);
-        SHORT(0x3932);
-        SHORT(0x0769);
-        SHORT(0x6e2d);
-        SHORT(0x6164);
-        SHORT(0x6472);
-        SHORT(0x0461);
-        SHORT(0x7270);
+        /* 0808 86e3 0035 0034 d3f1 5836 0100 0001 */
+        BYTE(0x08);
+        BYTE(0x08);
+        BYTE(0x86);
+        BYTE(0xE3);
+        BYTE(0x00);
+        BYTE(0x35);
+        BYTE(0x00);
+        BYTE(0x34);
+        BYTE(0xD3);
+        BYTE(0xF1);
+        BYTE(0x58);
+        BYTE(0x36);
+        BYTE(0x01);
+        BYTE(0x00);
+        BYTE(0x00);
+        BYTE(0x01);
 
-        SHORT(0x6100);
-        SHORT(0x000c);
-        SHORT(0x0001);
+
+        /* 0000 0000 0000 0331 3835 0132 0331 3638 */
+        BYTE(0x00);
+        BYTE(0x00);
+        BYTE(0x00);
+        BYTE(0x00);
+        BYTE(0x00);
+        BYTE(0x00);
+        BYTE(0x03);
+        BYTE(0x31);
+        BYTE(0x38);
+        BYTE(0x35);
+        BYTE(0x01);
+        BYTE(0x32);
+        BYTE(0x03);
+        BYTE(0x31);
+        BYTE(0x36);
+        BYTE(0x38);
+
+
+        /* 0331 3932 0769 6e2d 6164 6472 0461 7270 */
+        BYTE(0x03);
+        BYTE(0x31);
+        BYTE(0x39);
+        BYTE(0x32);
+        BYTE(0x07);
+        BYTE(0x69);
+        BYTE(0x6E);
+        BYTE(0x2D);
+        BYTE(0x61);
+        BYTE(0x64);
+        BYTE(0x64);
+        BYTE(0x72);
+        BYTE(0x04);
+        BYTE(0x61);
+        BYTE(0x72);
+        BYTE(0x70);
+
+
+        /* 6100 000c 0001 */
+        BYTE(0x61);
+        BYTE(0x00);
+        BYTE(0x00);
+        BYTE(0x0C);
+        BYTE(0x00);
+        BYTE(0x01);
+
 
         /* CUSTOM END SEQ */
         SHORT(0xFFFF);
