@@ -39,29 +39,46 @@ uint64_t _bpf_helper_ext_0006(const void *fmt, uint64_t fmt_size, ...)
 
 // Assume this is called to load and access the eBPF object file
 std::string loadRodata(const std::string &sourceFile) {
+
     // Load the source object file
     Expected<OwningBinary<ObjectFile>> binaryOrErr = ObjectFile::createObjectFile(sourceFile);
     if (!binaryOrErr) {
         llvm::errs() << "Failed to open source file\n";
+        SPDLOG_ERROR("Failed to open source file {}\n", sourceFile);
         return "";
     }
+    if (auto E = binaryOrErr.takeError()) {
+        SPDLOG_ERROR("Failed to open source file error: {}\n", toString(std::move(E)));
+        return "";
+    }
+
     ObjectFile &srcObj = *binaryOrErr->getBinary();
 
     // Find the .rodata section
     for (const SectionRef &section : srcObj.sections()) {
-        StringRef sectionName;
-        section.getName(sectionName);
+        auto sectionName = section.getName();
 
-        if (sectionName == ".rodata") {
+        if (auto E = sectionName.takeError()) {
+            SPDLOG_ERROR("Failed to open source file error: {}\n", toString(std::move(E)));
+            return "";
+        }
+
+        SPDLOG_INFO("Found Section {}", sectionName->str());
+
+        if (sectionName->str() == ".rodata") {
             // Retrieve the contents of the .rodata section (string literals)
-            StringRef rodataContent;
-            section.getContents(rodataContent);
+            auto content = section.getContents();
 
-            return rodataContent.str(); // Return the rodata content as a string
+            if (auto E = content.takeError()) {
+                SPDLOG_ERROR("Failed to get content of .rodata: {}\n", toString(std::move(E)));
+                return "";
+            }
+
+            return content->str(); // Return the rodata content as a string
         }
     }
 
-    llvm::errs() << ".rodata section not found\n";
+    SPDLOG_INFO(".rodata section not found\n");
     return "";
 }
 static int add_helpers(ebpf_llvm_jit::jit::CompilerXDP *ctx) {
@@ -82,7 +99,7 @@ static int add_helpers(ebpf_llvm_jit::jit::CompilerXDP *ctx) {
 
     return 0;
 }
-static int build_xdp(bpf_program *prog, const char *name, const std::filesystem::path &output)
+static int build_xdp(bpf_program *prog, const char *name, const std::filesystem::path &output, const std::string &roData)
 {
     ebpf_llvm_jit::jit::CompilerXDP ctx;
 
@@ -122,6 +139,8 @@ static int build_ebpf_program(const std::string &ebpf_elf, const std::filesystem
     std::unique_ptr<bpf_object, decltype(&bpf_object__close)> elf(obj, bpf_object__close);
     bpf_program *prog;
 
+    auto roData = loadRodata(ebpf_elf);
+
     bpf_object__for_each_program(prog, elf.get())
     {
         auto name = bpf_program__name(prog);
@@ -131,7 +150,7 @@ static int build_ebpf_program(const std::string &ebpf_elf, const std::filesystem
         int err = 0;
 
         if (strcmp(sect, "xdp") == 0) {
-            err = build_xdp(prog, name, output);
+            err = build_xdp(prog, name, output, roData);
         } else if (strcmp(sect, ".rodata") == 0) {
             SPDLOG_INFO("Processing .rodata section");
             // Handle .rodata here

@@ -5,16 +5,18 @@
 #include "compiler_xdp.h"
 #include "spdlog/spdlog.h"
 
-#include "llvm/IR/Module.h"
+#include <llvm/IR/Module.h>
+#include <llvm/IR/GlobalVariable.h>
+#include <llvm/IR/LegacyPassManager.h>
 #include <llvm/ExecutionEngine/JITSymbol.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/Support/raw_ostream.h>
 #include <llvm/Support/Error.h>
-#include <llvm/IR/LegacyPassManager.h>
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #include <llvm/Support/Host.h>
 #include <llvm/MC/TargetRegistry.h>
+
 
 using namespace ebpf_llvm_jit::jit;
 
@@ -120,7 +122,7 @@ int CompilerXDP::load_code(const void *code, size_t code_len)
     insts.assign((ebpf_inst *)code,(ebpf_inst *)code + code_len / 8);
     return 0;
 }
-std::vector<uint8_t> CompilerXDP::do_aot_compile(bool print_ir)
+std::vector<uint8_t> CompilerXDP::do_aot_compile(bool print_ir, const std::string &roData)
 {
 
     std::vector<std::string> extFuncNames, lddwHelpers;
@@ -154,6 +156,33 @@ std::vector<uint8_t> CompilerXDP::do_aot_compile(bool print_ir)
 
     SPDLOG_INFO("AOT: start");
     if (auto module = generateModule(extFuncNames, lddwHelpers, false); module) {
+
+        // Create LLVM context and IR builder
+        llvm::LLVMContext *context = module->getContext().getContext(); //->getContext();
+        llvm::IRBuilder<> builder(*context);
+
+        // Convert roData string to an LLVM constant array
+        llvm::Constant *roDataConstant = llvm::ConstantDataArray::getString(*context, roData, true);
+
+        // Create a global variable for roData in the module
+        llvm::GlobalVariable roDataGV(
+            *module,
+            roDataConstant->getType(),
+            true,
+            llvm::GlobalValue::ExternalLinkage,
+            roDataConstant,
+            //"rodata",
+            //nullptr,
+            //ThreadLocalMode = NotThreadLocal,
+            //Optional<unsigned> AddressSpace = None,
+            //bool isExternallyInitialized = false
+        );
+
+        // Set the section for the global variable to .rodata
+        roDataGV.setSection(".rodata");
+
+        // Optionally align the data (e.g., 1-byte alignment)
+        roDataGV.setAlignment(llvm::Align(1));
 
         auto targetTriple = "riscv64-unknown-elf";
         auto cpu = "generic"; // or a specific RISC-V CPU like 'rocket'
