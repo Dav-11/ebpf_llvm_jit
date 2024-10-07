@@ -1,9 +1,16 @@
 # ebpf_llvm_jit
 
 ## Description
-The target of this project is to create a framework to run BPF code into a RISCV core.
+The target of this project is to create a compiler that can compile BPF object files to native RISCV code.
 
+This can be considered a fork of [eunomia-bpf/llvmbpf](https://github.com/eunomia-bpf/llvmbpf) as it was used as the starting point.
 
+## Limitations
+The compiler is still in its early stage, as such, it can handle only XDP programs with no maps.
+Also only the `bpf_printk()` helper function is supported.
+
+## Examples
+There are some working usage examples in the [examples](examples/) folder.
 
 ## Build
 This project can be compiled only on linux systems due to the need of libbpf.
