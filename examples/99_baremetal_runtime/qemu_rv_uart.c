@@ -1,7 +1,6 @@
 //
 // Created by Davide Collovigh on 26/09/24.
 //
-
 #include "qemu_rv_uart.h"
 #include <stdarg.h>
 

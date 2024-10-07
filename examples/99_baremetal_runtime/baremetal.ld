@@ -26,8 +26,8 @@ SECTIONS
     /* Declare a symbol marking the start of the .rodata.bpf section */
     . = ALIGN(1);
     rodata_bpf_start = .;
-    .rodata.bpf : { 
-        *(.rodata.bpf) 
+    .rodata.bpf : {
+        *(.rodata.bpf)
     }
     rodata_bpf_end = .;
 
@@ -269,6 +269,6 @@ SECTIONS
     /* Stack allocation */
     . = ALIGN(16);    /* Align the stack */
     __stack_bottom = .;        /* Stack bottom symbol */
-    . += 16K;          /* Allocate 16 KB for the stack */
+    . += 4M;          /* Allocate 16 KB for the stack */
     __stack_top = .;  /* Stack top symbol */
 }

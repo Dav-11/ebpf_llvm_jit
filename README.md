@@ -1,6 +1,11 @@
 # ebpf_llvm_jit
 
-## Compile
+## Description
+The target of this project is to create a framework to run BPF code into a RISCV core.
+
+
+
+## Build
 This project can be compiled only on linux systems due to the need of libbpf.
 
 ### Requirements

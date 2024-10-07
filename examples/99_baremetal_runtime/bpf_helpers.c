@@ -5,40 +5,61 @@
 #include "bpf_helpers.h"
 #include "qemu_rv_uart.h"
 
+const int DEBUG_PRINTK = 0;
+
 // Function to handle format string and variable arguments
 uint64_t _bpf_helper_ext_0006(const char *fmt, uint64_t fmt_size, ...) {
 
-    char *fmt_str = fmt;
+    const char *fmt_str = fmt;
     char *fmt_relocated = (void *)(&rodata_bpf_start) + (uint64_t) fmt;
+    uint64_t relo_len = (void *)(&rodata_bpf_end) - (void *)(fmt_relocated);
     uint64_t rodata_len = (void *)(&rodata_bpf_end) - (void *)(&rodata_bpf_start);
 
-    // printf("FMT:\t\t0x%16x\n", fmt);
-    // printf("RELOCATED:\t0x%16x\n", fmt_relocated);
-    // printf("rodata_start:\t0x%16x\n", (void *)(&rodata_bpf_start));
-    // printf("rodata_end:\t0x%16x\n", (void *)(&rodata_bpf_end));
-    // printf("rodata_len: %d\n", rodata_len);
+    if (DEBUG_PRINTK) {
+        printf("\n\n_bpf_helper_ext_0006 DEBUG\n");
 
-    // char *str = (void *)(&rodata_bpf_start);
-    // for(int i = 0; i < rodata_len; i++) {
-    //     printf("%2x", str[i]);
-    // }
+        printf("FMT:\t\t0x%16x\n", fmt);
+        printf("RELOCATED:\t0x%16x\n", fmt_relocated);
+        printf("fmt_size:\t%d\n", fmt_size);
+        printf("rodata_start:\t0x%16x\n", (void *)(&rodata_bpf_start));
+        printf("rodata_end:\t0x%16x\n", (void *)(&rodata_bpf_end));
+        printf("rodata_len: %d\n", rodata_len);
 
-    // uart_putc('\n');
+        for(int i = 0; i < fmt_size; i++) {
+            printf("%2x", fmt_relocated[i]);
+        }
+
+        uart_putc('\n');
+    }
 
 
-    if(fmt_str == NULL) {
+    if((void *) fmt_str < (void *) BASE_ADDRESS_QEMU_RV64) {
 
         // try to check if the string is into .rodata.bpf
         if (fmt_relocated != NULL) {
 
             fmt_str = fmt_relocated;
-            // printf("%s\n", fmt_relocated);
+            if (DEBUG_PRINTK) {
+                printf("Chosen relocation %s\n", fmt_relocated);
+            }
         } else {
 
             uart_puts("called _bpf_helper_ext_0006 with empty pointer as fmt\n");
             return 0;
         }
     }
+
+    if (DEBUG_PRINTK) {
+
+        for(int i = 0; i < fmt_size; i++) {
+            printf("%2x", fmt_str[i]);
+        }
+
+        uart_putc('\n');
+
+        printf("_bpf_helper_ext_0006 END DEBUG\n\n");
+    }
+
 
     va_list args;
     va_start(args, fmt_size);

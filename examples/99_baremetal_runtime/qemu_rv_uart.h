@@ -6,6 +6,7 @@
 #define BAREMETAL_RV_QEMU_RV_UART_H
 
 #include <stdint.h>
+#include "qemu_rv_uart.h"
 
 #define NULL ((void *)0)
 #define UART0_BASE 0x10000000
