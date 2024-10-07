@@ -12,10 +12,6 @@
 // specific for RV64 qemu
 volatile char *uart_base = (volatile char *) UART0_BASE;
 
-// data region where pkt are stored
-extern uint32_t my_data_region_start;
-extern uint32_t my_data_region_end;
-
 /**************************
  * ERRORS
  **************************/
