@@ -1,5 +1,7 @@
 # Examples
 
+![compiler.png](compiler.png)
+
 This folder contains some examples of how the compiler can be used to create baremetal programs for QEMU-riscv64.
 
 All examples are composed by two pieces:
