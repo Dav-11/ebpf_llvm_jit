@@ -7,7 +7,7 @@
 
 const int DEBUG_PRINTK = 0;
 
-// Function to handle format string and variable arguments
+
 uint64_t _bpf_helper_ext_0006(const char *fmt, uint64_t fmt_size, ...) {
 
     const char *fmt_str = fmt;
@@ -32,7 +32,8 @@ uint64_t _bpf_helper_ext_0006(const char *fmt, uint64_t fmt_size, ...) {
         uart_putc('\n');
     }
 
-
+    // fmt string is always placed inside the .rodata, but I did not find any docs about it
+    // so I keep a check to make sure.
     if((void *) fmt_str < (void *) BASE_ADDRESS_QEMU_RV64) {
 
         // try to check if the string is into .rodata.bpf

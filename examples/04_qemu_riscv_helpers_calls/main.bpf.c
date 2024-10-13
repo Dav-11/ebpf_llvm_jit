@@ -10,11 +10,7 @@
 SEC("xdp")
 int hello_world(struct xdp_md *ctx) {
 
-    // char buf[30];
-    // strcpy(buf, "Hello World from XDP\n\0");
-
-    bpf_printk("Hello World from XDP\n");
-
+    bpf_printk("Hello World from XDP: %d\n", 99);
     return XDP_PASS;
 }
 
