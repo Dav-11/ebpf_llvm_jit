@@ -258,4 +258,39 @@ Contents of section .rodata.str1.1:
  0000 61626364 65666700                    abcdefg.
 ```
 
-## Conclusion
+### 06 - double printk with double format strings
+```C
+SEC("xdp")
+int hello_world(struct xdp_md *ctx) {
+
+    bpf_printk("Hello World from XDP: %s, %s\n", "abcdef", "ghilm");
+    bpf_printk("Hola Mundo from XDP: %s, %s\n", "aaaaaaa", "kkkkkkkk");
+    return XDP_PASS;
+}
+```
+.rodata section:
+```
+$ llvm-objdump -s -j .rodata .output/main.bpf.o
+
+.output/main.bpf.o:     file format elf64-bpf
+Contents of section .rodata:
+ 0000 48656c6c 6f20576f 726c6420 66726f6d  Hello World from
+ 0010 20584450 3a202573 2c202573 0a00486f   XDP: %s, %s..Ho
+ 0020 6c61204d 756e646f 2066726f 6d205844  la Mundo from XD
+ 0030 503a2025 732c2025 730a00             P: %s, %s..
+```
+
+.rodata.str1.1
+```
+$ llvm-objdump -s -j .rodata.str1.1 .output/main.bpf.o
+
+.output/main.bpf.o:     file format elf64-bpf
+Contents of section .rodata.str1.1:
+ 0000 61626364 65660067 68696c6d 00616161  abcdef.ghilm.aaa
+ 0010 61616161 006b6b6b 6b6b6b6b 6b00      aaaa.kkkkkkkk.
+```
+
+## Conclusions
+1. Format strings is always placed in `.rodata`
+2. Params are placed in `.rodata.str1.1` if constant
+3. Params are loaded normally from the stack if they were not constant
