@@ -3,6 +3,7 @@
 //
 
 #include "compiler_xdp.h"
+#include "passthrough_section.h"
 #include "spdlog/spdlog.h"
 
 #include <llvm/IR/Module.h>
@@ -122,7 +123,7 @@ int CompilerXDP::load_code(const void *code, size_t code_len)
     insts.assign((ebpf_inst *)code,(ebpf_inst *)code + code_len / 8);
     return 0;
 }
-std::vector<uint8_t> CompilerXDP::do_aot_compile(bool print_ir, const std::string &roData)
+std::vector<uint8_t> CompilerXDP::do_aot_compile(bool print_ir, const std::vector<ebpf_llvm_jit::jit::passthrough_section> &sections)
 {
 
     std::vector<std::string> extFuncNames, lddwHelpers;

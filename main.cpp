@@ -4,6 +4,7 @@
 #include <string>
 #include <unistd.h>
 #include <fstream>
+#include <array>
 
 #include <bpf/libbpf.h>
 
@@ -16,6 +17,7 @@
 #include "src/jit/compiler_xdp.h"
 #include "src/helpers/helper.h"
 #include "src/include/helpers_impl.h"
+#include "src/jit/passthrough_section.h"
 
 #define XDP_SECT "xdp"
 
@@ -38,7 +40,7 @@ uint64_t _bpf_helper_ext_0006(const void *fmt, uint64_t fmt_size, ...)
 }
 
 // Assume this is called to load and access the eBPF object file
-std::string loadRodata(const std::string &sourceFile) {
+std::string loadSection(const std::string &sourceFile, const std::string& sectionNameString) {
 
     // Load the source object file
     Expected<OwningBinary<ObjectFile>> binaryOrErr = ObjectFile::createObjectFile(sourceFile);
@@ -65,12 +67,12 @@ std::string loadRodata(const std::string &sourceFile) {
 
         SPDLOG_INFO("Found Section {}", sectionName->str());
 
-        if (sectionName->str() == ".rodata") {
+        if (sectionName->str() == sectionNameString) {
             // Retrieve the contents of the .rodata section (string literals)
             auto content = section.getContents();
 
             if (auto E = content.takeError()) {
-                SPDLOG_ERROR("Failed to get content of .rodata: {}\n", toString(std::move(E)));
+                SPDLOG_ERROR("Failed to get content of {} {}\n", sectionNameString, toString(std::move(E)));
                 return "";
             }
 
@@ -99,7 +101,7 @@ static int add_helpers(ebpf_llvm_jit::jit::CompilerXDP *ctx) {
 
     return 0;
 }
-static int build_xdp(bpf_program *prog, const char *name, const std::filesystem::path &output, const std::string &roData)
+static int build_xdp(bpf_program *prog, const char *name, const std::filesystem::path &output, std::vector<ebpf_llvm_jit::jit::passthrough_section> &sections)
 {
     ebpf_llvm_jit::jit::CompilerXDP ctx;
 
@@ -139,7 +141,16 @@ static int build_ebpf_program(const std::string &ebpf_elf, const std::filesystem
     std::unique_ptr<bpf_object, decltype(&bpf_object__close)> elf(obj, bpf_object__close);
     bpf_program *prog;
 
-    auto roData = loadRodata(ebpf_elf);
+    std::vector<ebpf_llvm_jit::jit::passthrough_section> sections = {
+            {
+                    ".rodata.bpf",
+                    loadSection(ebpf_elf, ".rodata")
+            },
+            {
+                    ".rodata.str1.1",
+                    loadSection(ebpf_elf, ".rodata.str1.1")
+            }
+    };
 
     bpf_object__for_each_program(prog, elf.get())
     {
@@ -150,10 +161,7 @@ static int build_ebpf_program(const std::string &ebpf_elf, const std::filesystem
         int err = 0;
 
         if (strcmp(sect, "xdp") == 0) {
-            err = build_xdp(prog, name, output, roData);
-        } else if (strcmp(sect, ".rodata") == 0) {
-            SPDLOG_INFO("Processing .rodata section");
-            // Handle .rodata here
+            err = build_xdp(prog, name, output, sections);
         } else {
             SPDLOG_ERROR("BPF section type \"{}\" is unsupported", sect);
         }

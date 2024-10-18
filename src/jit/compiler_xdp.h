@@ -20,6 +20,7 @@
 #include "../ebpf_inst.h"
 #include "external_function.h"
 #include "program.h"
+#include "passthrough_section.h"
 
 #ifndef MAX_EXT_FUNCS
 #define MAX_EXT_FUNCS 8192
@@ -64,7 +65,7 @@ namespace ebpf_llvm_jit::jit {
         generateModule(const std::vector<std::string> &extFuncNames,
                        const std::vector<std::string> &lddwHelpers,
                        bool patch_map_val_at_compile_time,
-                       const std::string &roData);
+                       const std::vector<ebpf_llvm_jit::jit::passthrough_section> &sections);
 
 //        llvm::Expected<int>
 //        HandleInstruction(llvm::IRBuilder<> &builder, uint16_t pc, std::vector<llvm::Value *> regs, bool patch_map_val_at_compile_time,llvm::Value *callStack, llvm::Value *callItemCnt);
@@ -80,7 +81,7 @@ namespace ebpf_llvm_jit::jit {
         int load_code(const void *code, size_t code_len);
         int register_external_function(size_t index, const std::string &name, void *fn);
 
-        std::vector<uint8_t> do_aot_compile(bool print_ir, const std::string &roData);
+        std::vector<uint8_t> do_aot_compile(bool print_ir, const std::vector<ebpf_llvm_jit::jit::passthrough_section> &sections);
     };
 }
 
