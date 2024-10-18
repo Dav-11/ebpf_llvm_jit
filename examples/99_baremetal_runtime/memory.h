@@ -17,5 +17,9 @@ extern const char rodata_bpf_start;
 extern const char rodata_str1_bpf_start;
 extern const char rodata_bpf_end;
 
+// stack
+extern const char __stack_bottom;
+extern const char __stack_top;
+
 
 #endif //MEMORY_H
