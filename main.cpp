@@ -121,7 +121,7 @@ static int build_xdp(bpf_program *prog, const char *name, const std::filesystem:
     }
 
     // write result to file
-    auto result = ctx.do_aot_compile(true, roData);
+    auto result = ctx.do_aot_compile(true, sections);
 
     auto out_path = output / (std::string(name) + ".o");
     std::ofstream ofs(out_path, std::ios::binary);

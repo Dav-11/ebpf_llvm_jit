@@ -156,7 +156,7 @@ std::vector<uint8_t> CompilerXDP::do_aot_compile(bool print_ir, const std::vecto
     tryDefineLddwHelper(LDDW_HELPER_MAP_VAL, (void *)map_val);
 
     SPDLOG_INFO("AOT: start");
-    if (auto module = generateModule(extFuncNames, lddwHelpers, false, roData); module) {
+    if (auto module = generateModule(extFuncNames, lddwHelpers, false, sections); module) {
 
         SPDLOG_INFO("AOT: generated module");
 
