@@ -81,13 +81,13 @@ $(OUTPUT)/qemu_rv_uart.o: ../99_baremetal_runtime/qemu_rv_uart.c ../99_baremetal
 	$(call msg,GCC,$@)
 	$(Q) riscv64-unknown-elf-gcc -c -g -O0 -ffreestanding -mcmodel=medany -march=rv64g -mabi=lp64 -o "$@" ../99_baremetal_runtime/qemu_rv_uart.c
 
-$(OUTPUT)/bpf_helpers.o: ../99_baremetal_runtime/bpf_helpers.c ../99_baremetal_runtime/bpf_helpers.h
+$(OUTPUT)/bpf_printk.o: ../99_baremetal_runtime/bpf_printk.c ../99_baremetal_runtime/bpf_helpers.h
 	$(call msg,GCC,$@)
-	$(Q) riscv64-unknown-elf-gcc -c -g -O0 -ffreestanding -mcmodel=medany -march=rv64g -mabi=lp64 -o "$@" ../99_baremetal_runtime/bpf_helpers.c
+	$(Q) riscv64-unknown-elf-gcc -c -g -O0 -ffreestanding -mcmodel=medany -march=rv64g -mabi=lp64 -o "$@" ../99_baremetal_runtime/bpf_printk.c
 
-$(OUTPUT)/hello.elf: $(OUTPUT) $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_helpers.o ../99_baremetal_runtime/baremetal.ld $(OUTPUT)/hello_world.rv64.o
+$(OUTPUT)/hello.elf: $(OUTPUT) $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_printk.o ../99_baremetal_runtime/baremetal.ld $(OUTPUT)/hello_world.rv64.o
 	$(call msg,LD,$@)
-	$(Q) riscv64-unknown-elf-ld -T ../99_baremetal_runtime/baremetal.ld -m elf64lriscv -o "$@" $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_helpers.o $(OUTPUT)/hello_world.rv64.o
+	$(Q) riscv64-unknown-elf-ld -T ../99_baremetal_runtime/baremetal.ld -m elf64lriscv -o "$@" $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_printk.o $(OUTPUT)/hello_world.rv64.o
 
 hello.dis.s: $(OUTPUT)/hello.elf
 	$(call msg,DISASM,$@)
@@ -98,4 +98,4 @@ run: $(OUTPUT)/hello.elf
 	qemu-system-riscv64 -nographic -serial mon:stdio -machine virt -bios $(OUTPUT)/hello.elf
 
 clean:
-	rm -f $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/hello.elf $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/hello_world.rv64.o $(OUTPUT)/main.bpf.o $(OUTPUT)/bpf_helpers.o
+	rm -f $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/hello.elf $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/hello_world.rv64.o $(OUTPUT)/main.bpf.o $(OUTPUT)/bpf_printk.o

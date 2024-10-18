@@ -14,6 +14,7 @@ extern const char my_data_region_end;
 
 // .rodata.bpf section
 extern const char rodata_bpf_start;
+extern const char rodata_str1_bpf_start;
 extern const char rodata_bpf_end;
 
 

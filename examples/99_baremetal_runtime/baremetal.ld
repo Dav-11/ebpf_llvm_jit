@@ -29,6 +29,10 @@ SECTIONS
     .rodata.bpf : {
         *(.rodata.bpf)
     }
+    rodata_str1_bpf_start = .;
+    .rodata.str1.1 : {
+        *(.rodata.str1.1)
+    }
     rodata_bpf_end = .;
 
     .rodata : { *(.rodata); *(.rodata.*) }
