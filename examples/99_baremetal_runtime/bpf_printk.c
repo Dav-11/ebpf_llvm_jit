@@ -18,7 +18,9 @@ void *get_or_rebase_arg(void *ptr, void *rebase_base)
         printf("\n");
         printf("rodata_bpf_start:\t0x%16x\n", &rodata_bpf_start);
         printf("rodata_str1_bpf_start:\t0x%16x\n", &rodata_str1_bpf_start);
-        printf("rodata_bpf_end:\t0x%16x\n\n", &rodata_bpf_end);
+        printf("rodata_bpf_end:\t0x%16x\n", &rodata_bpf_end);
+        printf("\n");
+        printf("rebase_base:\t0x%16x\n\n", rebase_base);
 
         int rodata_str1_len = &rodata_bpf_end - &rodata_str1_bpf_start;
         char * debug = (char *) &rodata_str1_bpf_start;
@@ -54,45 +56,18 @@ uint64_t _bpf_helper_ext_0006(const char *fmt, uint64_t fmt_size, ...) {
      *********************************/
 
     const char *fmt_str = fmt;
-    char *fmt_relocated = (void *)(&rodata_bpf_start) + (uint64_t) fmt;
-    uint64_t relo_len = (void *)(&rodata_bpf_end) - (void *)(fmt_relocated);
-    uint64_t rodata_len = (void *)(&rodata_bpf_end) - (void *)(&rodata_bpf_start);
 
     if (DEBUG_PRINTK) {
         printf("\n\n_bpf_helper_ext_0006 DEBUG\n");
 
         printf("FMT:\t\t0x%16x\n", fmt);
-        printf("RELOCATED:\t0x%16x\n", fmt_relocated);
         printf("fmt_size:\t%d\n", fmt_size);
-        printf("rodata_start:\t0x%16x\n", (void *)(&rodata_bpf_start));
-        printf("rodata_end:\t0x%16x\n", (void *)(&rodata_bpf_end));
-        printf("rodata_len: %d\n", rodata_len);
-
-        for(int i = 0; i < fmt_size; i++) {
-            printf("%2x", fmt_relocated[i]);
-        }
-
-        uart_putc('\n');
     }
 
 
     // fmt string is always placed inside the .rodata, but I did not find any docs about it
     // so I keep a check to make sure.
-    if((void *) fmt_str < (void *) BASE_ADDRESS_QEMU_RV64) {
-
-        // try to check if the string is into .rodata.bpf
-        if (fmt_relocated != NULL) {
-
-            fmt_str = fmt_relocated;
-            if (DEBUG_PRINTK) {
-                printf("Chosen relocation %s\n", fmt_relocated);
-            }
-        } else {
-
-            uart_puts("called _bpf_helper_ext_0006 with empty pointer as fmt\n");
-            return 0;
-        }
-    }
+    fmt_str = (char *) get_or_rebase_arg((void *) fmt, (void *) &rodata_bpf_start);
 
     if (DEBUG_PRINTK) {
 
