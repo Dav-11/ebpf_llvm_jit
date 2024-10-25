@@ -9,6 +9,8 @@ BPFTOOL_SRC := $(abspath ../third_party/bpftool/src)
 
 # Output directory
 OUTPUT := .output
+RNT_BASE := ../../rv64_baremetal_runtime
+OUT_RNT := $(RNT_BASE)/.output
 LIBBPF_OBJ := $(abspath $(OUTPUT)/libbpf.a)
 LIBBPF_PKGCONFIG := $(abspath $(OUTPUT)/pkgconfig)
 BPFTOOL_OUTPUT ?= $(abspath $(OUTPUT)/bpftool)
@@ -33,11 +35,22 @@ else
 	MAKEFLAGS += --no-print-directory
 endif
 
+RUNTIME_HDR := $(RNT_BASE)/bpf_helpers.h \
+	$(RNT_BASE)/memory.h \
+	$(RNT_BASE)/qemu_rv_uart.h
+
+RUNTIME_BIN := $(OUT_RNT)/start.o \
+	$(OUT_RNT)/qemu_rv_uart.o \
+	$(OUT_RNT)/bpf_printk.o
+
 ####
 # TARGETS
 ####
 
 all: $(OUTPUT)/hello.elf
+
+$(RUNTIME_BIN):
+	$(MAKE) -C $(RNT_BASE) all
 
 # create folders
 $(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT):
@@ -57,7 +70,7 @@ $(BPFTOOL): | $(BPFTOOL_OUTPUT)
 	$(call msg,BPFTOOL,$@)
 	$(Q)$(MAKE) ARCH= CROSS_COMPILE= OUTPUT=$(BPFTOOL_OUTPUT)/ -C $(BPFTOOL_SRC) bootstrap
 
-deps: $(LIBBPF_OBJ) $(BPFTOOL)
+deps: $(LIBBPF_OBJ) $(BPFTOOL) $(RUNTIME_BIN)
 
 $(OUTPUT)/main.bpf.o: main.bpf.c $(LIBBPF_OBJ) $(wildcard %.h) | $(OUTPUT)
 	$(call msg,BPF,$@)
@@ -69,29 +82,18 @@ $(OUTPUT)/hello_world.rv64.o: $(OUTPUT)/main.bpf.o
 	$(Q) $(EBPF_LLVM_JIT) build $(OUTPUT)/main.bpf.o -o $(OUTPUT)
 	$(Q) mv $(OUTPUT)/hello_world.o $@
 
-$(OUTPUT)/main.o: main.c ../99_baremetal_runtime/qemu_rv_uart.h
-	$(call msg,GCC,$@)
+$(OUTPUT)/main.o: main.c $(RUNTIME_HDR)
+	$(call msg,CC,$@)
 	$(Q) riscv64-unknown-elf-gcc -c -g -O0 -ffreestanding -mcmodel=medany -march=rv64g -mabi=lp64 -o "$@" main.c
 
-$(OUTPUT)/start.o: start.S
-	$(call msg,AS,$@)
-	$(Q) riscv64-unknown-elf-as -march=rv64g -mabi=lp64 -o "$@" start.S
-
-$(OUTPUT)/qemu_rv_uart.o: ../99_baremetal_runtime/qemu_rv_uart.c ../99_baremetal_runtime/qemu_rv_uart.h
-	$(call msg,GCC,$@)
-	$(Q) riscv64-unknown-elf-gcc -c -g -O0 -ffreestanding -mcmodel=medany -march=rv64g -mabi=lp64 -o "$@" ../99_baremetal_runtime/qemu_rv_uart.c
-
-$(OUTPUT)/bpf_printk.o: ../99_baremetal_runtime/bpf_printk.c ../99_baremetal_runtime/bpf_helpers.h
-	$(call msg,GCC,$@)
-	$(Q) riscv64-unknown-elf-gcc -c -g -O0 -ffreestanding -mcmodel=medany -march=rv64g -mabi=lp64 -o "$@" ../99_baremetal_runtime/bpf_printk.c
-
-$(OUTPUT)/hello.elf: $(OUTPUT) $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_printk.o ../99_baremetal_runtime/baremetal.ld $(OUTPUT)/hello_world.rv64.o
+$(OUTPUT)/hello.elf: $(OUTPUT) $(OUTPUT)/main.o $(OUTPUT)/hello_world.rv64.o $(RUNTIME_BIN)
 	$(call msg,LD,$@)
-	$(Q) riscv64-unknown-elf-ld -T ../99_baremetal_runtime/baremetal.ld -m elf64lriscv -o "$@" $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_printk.o $(OUTPUT)/hello_world.rv64.o
+	$(Q) riscv64-unknown-elf-ld -T $(RNT_BASE)/baremetal.ld -m elf64lriscv -o "$@" $(OUTPUT)/main.o $(OUTPUT)/hello_world.rv64.o $(RUNTIME_BIN)
 
 run: $(OUTPUT)/hello.elf
 	@echo "Ctrl-A C for QEMU console, then quit to exit"
 	qemu-system-riscv64 -nographic -serial mon:stdio -machine virt -bios $(OUTPUT)/hello.elf
 
 clean:
+	$(MAKE) -C $(RNT_BASE) clean
 	rm -f $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/hello.elf $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/hello_world.rv64.o $(OUTPUT)/main.bpf.o $(OUTPUT)/bpf_printk.o

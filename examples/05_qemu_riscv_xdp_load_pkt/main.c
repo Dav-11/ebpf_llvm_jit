@@ -2,9 +2,9 @@
 // Created by Davide Collovigh on 26/09/24.
 //
 
-#include "../99_baremetal_runtime/qemu_rv_uart.h"
-#include "../99_baremetal_runtime/bpf_helpers.h"
-//#include "../99_baremetal_runtime/memory.h"
+#include "../../rv64_baremetal_runtime/qemu_rv_uart.h"
+#include "../../rv64_baremetal_runtime/bpf_helpers.h"
+//#include "../../rv64_baremetal_runtime/memory.h"
 
 
 #define BUF_SIZE 50
@@ -91,7 +91,7 @@ int load_packet_from_mem(const void *region_start, const void *region_end, struc
 }
 
 
-void main() {
+int main() {
     UART0_FCR = UARTFCR_FFENA;    // Set the FIFO for polled operation
     uart_puts("Started runtime\n");  // Write the string to the UART
 

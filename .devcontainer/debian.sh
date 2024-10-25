@@ -41,7 +41,8 @@ install_main() {
     llvm-15 clang-15 \
     zlib1g-dev \
     libelf-dev \
-    pkgconf
+    pkgconf \
+    gcc-multilib
 }
 
 # install riscv64-qemu deps

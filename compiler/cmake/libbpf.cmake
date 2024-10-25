@@ -4,7 +4,7 @@ include(ExternalProject)
 
 message(STATUS "Downloading and building libbpf...")
 
-set(LIBBPF_DIR ${CMAKE_CURRENT_LIST_DIR}/../third_party/libbpf/)
+set(LIBBPF_DIR ../third_party/libbpf)
 
 # Declare the libbpf content to be fetched
 ExternalProject_Add(

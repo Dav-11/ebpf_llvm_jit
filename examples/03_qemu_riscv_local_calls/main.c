@@ -2,8 +2,8 @@
 // Created by Davide Collovigh on 26/09/24.
 //
 
-#include "../99_baremetal_runtime/qemu_rv_uart.h"
-#include "../99_baremetal_runtime/bpf_helpers.h"
+#include "../../rv64_baremetal_runtime/qemu_rv_uart.h"
+#include "../../rv64_baremetal_runtime/bpf_helpers.h"
 
 /**************************
  * MEM MAPPINGS
