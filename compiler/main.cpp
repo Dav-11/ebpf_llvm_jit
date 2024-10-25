@@ -101,7 +101,7 @@ static int add_helpers(ebpf_llvm_jit::jit::CompilerXDP *ctx) {
 
     return 0;
 }
-static int build_xdp(bpf_program *prog, const char *name, const std::filesystem::path &output, std::vector<ebpf_llvm_jit::jit::passthrough_section> &sections)
+static int build_xdp(bpf_program *prog, const char *name, const std::filesystem::path &output, bool emit_llvm_ir, std::vector<ebpf_llvm_jit::jit::passthrough_section> &sections)
 {
     ebpf_llvm_jit::jit::CompilerXDP ctx;
 
@@ -131,7 +131,7 @@ static int build_xdp(bpf_program *prog, const char *name, const std::filesystem:
 
     return 0;
 }
-static int build_ebpf_program(const std::string &ebpf_elf, const std::filesystem::path &output)
+static int build_ebpf_program(const std::string &ebpf_elf, const std::filesystem::path &output, bool emit_llvm_ir)
 {
     bpf_object *obj = bpf_object__open(ebpf_elf.c_str());
     if (!obj) {
@@ -161,7 +161,7 @@ static int build_ebpf_program(const std::string &ebpf_elf, const std::filesystem
         int err = 0;
 
         if (strcmp(sect, "xdp") == 0) {
-            err = build_xdp(prog, name, output, sections);
+            err = build_xdp(prog, name, output, emit_llvm_ir, sections);
         } else {
             SPDLOG_ERROR("BPF section type \"{}\" is unsupported", sect);
         }
@@ -193,6 +193,10 @@ int main(int argc, const char **argv)
     build_command.add_argument("-o", "--output")
             .default_value(".")
             .help("Output directory (There might be multiple output files for a single input)");
+    build_command.add_argument("-e", "--emit_llvm")
+        .default_value(false)
+        .implicit_value(true)
+        .help("Emit LLVM IR for the eBPF program");
     build_command.add_argument("EBPF_ELF")
             .help("Path to an eBPF ELF executable");
 
@@ -213,7 +217,8 @@ int main(int argc, const char **argv)
     if (program.is_subcommand_used(build_command)) {
         return build_ebpf_program(
             build_command.get<std::string>("EBPF_ELF"),
-            build_command.get<std::string>("output")
+            build_command.get<std::string>("output"),
+            build_command.get<bool>("emit_llvm")
         );
     }
 
