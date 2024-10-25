@@ -1,5 +1,5 @@
 
-all: runtime ebpf_llvm_jit
+all: runtime ebpf_llvm_jit examples
 
 .PHONY: runtime
 runtime:
