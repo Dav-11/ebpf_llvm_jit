@@ -35,16 +35,15 @@ else
 	MAKEFLAGS += --no-print-directory
 endif
 
-RUNTIME_HDR := $(OUT_RNT)/bpf_helpers.h \
-	$(OUT_RNT)/load_pkt_from_mem.h \
-	$(OUT_RNT)/memory.h \
-	$(OUT_RNT)/qemu_rv_uart.h
+RUNTIME_HDR := $(RNT_BASE)/bpf_helpers.h \
+	$(RNT_BASE)/load_pkt_from_mem.h \
+	$(RNT_BASE)/memory.h \
+	$(RNT_BASE)/qemu_rv_uart.h
 
 RUNTIME_BIN := $(OUT_RNT)/start.o \
-	$(OUT_RNT)/qemu_rv_uart.o \
 	$(OUT_RNT)/load_pkt_from_mem.o \
-	$(OUT_RNT)/bpf_printk.o \
-	$(OUT_RNT)/baremetal.ld
+	$(OUT_RNT)/qemu_rv_uart.o \
+	$(OUT_RNT)/bpf_printk.o
 
 ####
 # TARGETS
