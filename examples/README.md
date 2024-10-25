@@ -14,7 +14,7 @@ The runtime is the code that will run on the VM instead of the OS, it will:
 - Expose a helper function (`bpf_printk()` decalred as `_bpf_helper_ext_0006`).
 - Handle the result of the XDP program.
 
-Most of the runtime code is shared between examples and can be found in the [99_baremetal_runtime](99_baremetal_runtime/) folder.
+Most of the runtime code is shared between examples and can be found in the [99_baremetal_runtime](../rv64_baremetal_runtime/) folder.
 
 ## BPF code
 The bpf code contains only XDP programs with no maps ATM.

@@ -14,10 +14,10 @@
 #include "spdlog/spdlog.h"
 #include "spdlog/cfg/env.h"
 #include "argparse/argparse.hpp"
-#include "src/jit/compiler_xdp.h"
-#include "src/helpers/helper.h"
-#include "src/include/helpers_impl.h"
-#include "src/jit/passthrough_section.h"
+#include "../src/jit/compiler_xdp.h"
+#include "../src/helpers/helper.h"
+#include "../src/include/helpers_impl.h"
+#include "../src/jit/passthrough_section.h"
 
 #define XDP_SECT "xdp"
 

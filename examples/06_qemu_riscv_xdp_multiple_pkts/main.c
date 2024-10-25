@@ -4,7 +4,7 @@
 
 #include "../99_baremetal_runtime/qemu_rv_uart.h"
 #include "../99_baremetal_runtime/bpf_helpers.h"
-//#include "../99_baremetal_runtime/memory.h"
+//#include "../rv64_baremetal_runtime/memory.h"
 
 #define BUF_SIZE 40
 #define ARR_SIZE 2

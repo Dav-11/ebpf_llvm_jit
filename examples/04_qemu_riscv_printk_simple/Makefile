@@ -69,7 +69,7 @@ $(OUTPUT)/hello_world.rv64.o: $(OUTPUT)/main.bpf.o
 	$(Q) $(EBPF_LLVM_JIT) build $(OUTPUT)/main.bpf.o -o $(OUTPUT)
 	$(Q) mv $(OUTPUT)/hello_world.o $@
 
-$(OUTPUT)/main.o: main.c ../99_baremetal_runtime/qemu_rv_uart.h
+$(OUTPUT)/main.o: main.c ../../rv64_baremetal_runtime
 	$(call msg,GCC,$@)
 	$(Q) riscv64-unknown-elf-gcc -c -g -O0 -ffreestanding -mcmodel=medany -march=rv64g -mabi=lp64 -o "$@" main.c
 
@@ -77,15 +77,15 @@ $(OUTPUT)/start.o: start.S
 	$(call msg,AS,$@)
 	$(Q) riscv64-unknown-elf-as -march=rv64g -mabi=lp64 -o "$@" start.S
 
-$(OUTPUT)/qemu_rv_uart.o: ../99_baremetal_runtime/qemu_rv_uart.c ../99_baremetal_runtime/qemu_rv_uart.h
+$(OUTPUT)/qemu_rv_uart.o: ../../rv64_baremetal_runtime ../../rv64_baremetal_runtime
 	$(call msg,GCC,$@)
 	$(Q) riscv64-unknown-elf-gcc -c -g -O0 -ffreestanding -mcmodel=medany -march=rv64g -mabi=lp64 -o "$@" ../99_baremetal_runtime/qemu_rv_uart.c
 
-$(OUTPUT)/bpf_printk.o: ../99_baremetal_runtime/bpf_printk.c ../99_baremetal_runtime/bpf_helpers.h
+$(OUTPUT)/bpf_printk.o: ../../rv64_baremetal_runtime ../../rv64_baremetal_runtime
 	$(call msg,GCC,$@)
 	$(Q) riscv64-unknown-elf-gcc -c -g -O0 -ffreestanding -mcmodel=medany -march=rv64g -mabi=lp64 -o "$@" ../99_baremetal_runtime/bpf_printk.c
 
-$(OUTPUT)/hello.elf: $(OUTPUT) $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_printk.o ../99_baremetal_runtime/baremetal.ld $(OUTPUT)/hello_world.rv64.o
+$(OUTPUT)/hello.elf: $(OUTPUT) $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_printk.o ../../rv64_baremetal_runtime $(OUTPUT)/hello_world.rv64.o
 	$(call msg,LD,$@)
 	$(Q) riscv64-unknown-elf-ld -T ../99_baremetal_runtime/baremetal.ld -m elf64lriscv -o "$@" $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/bpf_printk.o $(OUTPUT)/hello_world.rv64.o
 
