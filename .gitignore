@@ -1,10 +1,20 @@
+#######
 # IDEs
+#######
+
+# clang
 .idea
+cmake-build-build
+!compiler/third_party
+!examples/third_party
+third_party
+
+# others
 .vscode
 .fleet
 .zed
 
-#MacOS
+# MacOS
 .DS_Store
 
 # C
