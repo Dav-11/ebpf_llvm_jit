@@ -382,10 +382,46 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
     // Iterate over instructions
     BasicBlock *currBB = p.instBlocks[0];
     IRBuilder<> builder(currBB);
+    int current_ctx_reg = 1;
 
     for (uint16_t pc = 0; pc < p.insns.size(); pc++) {
 
         auto inst = p.insns[pc];
+        SPDLOG_INFO("INSN {:d}: [OPCODE: {:x}, SRC_REG: {:d}, DST_REG: {:d}, OFFSET: {:x}, IMM: {:x}]", pc, inst.code, static_cast<int>(inst.src_reg), static_cast<int>(inst.dst_reg), inst.off, inst.imm);
+
+        if (inst.src_reg == current_ctx_reg)
+        {
+            current_ctx_reg = inst.dst_reg;
+        }
+
+
+        // EMIT r1 += OFFSET as first instruction
+        if (pc == 0)
+        {
+            SPDLOG_INFO("ADDING OFFSET {:d} to r1", BASE);
+
+            // Declare an external global variable "base" of type int64_t
+            auto *baseGlobal = new GlobalVariable(
+                *currBB->getModule(),                      // Module to add the variable to
+                Type::getInt64Ty(currBB->getContext()),  // Type of the variable (int64_t)
+                false,                                        // Is the variable constant?
+                GlobalValue::ExternalLinkage,                 // Linkage type (external, for linking)
+                nullptr,                                      // Initializer (not used here, as it's external)
+                "base"                                      // Name of the external variable
+            );
+
+            // Load the value of the external base variable
+            Value *baseValue = builder.CreateLoad(builder.getInt64Ty(), baseGlobal, "base_value");
+
+            // Load the current value in r1 (or if r1 is already a register, use it directly)
+            Value *r1Value = builder.CreateLoad(builder.getInt64Ty(), p.regs[1]);
+
+            // Add the immediate value to r1 and store it back into r1
+            Value *sum = builder.CreateAdd(r1Value, baseValue, "add_r1_base");
+
+            // Store the result back into r1
+            builder.CreateStore(sum, p.regs[1]);
+        }
 
         if (p.blockBegin[pc]) {
             if (auto itr = p.instBlocks.find(pc); itr != p.instBlocks.end()) {
@@ -979,11 +1015,11 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                 // TODO: understand what ARGS is using
                 // TODO: ensure args are in .data / .rodata
 
-                SPDLOG_INFO("===== CALL INST ======");
-                SPDLOG_INFO("code: {}", inst.code);
-                SPDLOG_INFO("imm: {}", inst.imm);
-                SPDLOG_INFO("off: {}", inst.off);
-                SPDLOG_INFO("======================");
+                SPDLOG_DEBUG("===== CALL INST ======");
+                SPDLOG_DEBUG("code: {}", inst.code);
+                SPDLOG_DEBUG("imm: {}", inst.imm);
+                SPDLOG_DEBUG("off: {}", inst.off);
+                SPDLOG_DEBUG("======================");
 
 
                 // Call local function
