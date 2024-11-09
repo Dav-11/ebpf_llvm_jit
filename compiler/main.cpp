@@ -56,7 +56,7 @@ std::string loadSection(const std::string &sourceFile, const std::string& sectio
 
     ObjectFile &srcObj = *binaryOrErr->getBinary();
 
-    // Find the .rodata section
+    // Find the section
     for (const SectionRef &section : srcObj.sections()) {
         auto sectionName = section.getName();
 
@@ -65,7 +65,7 @@ std::string loadSection(const std::string &sourceFile, const std::string& sectio
             return "";
         }
 
-        SPDLOG_INFO("Found Section {}", sectionName->str());
+        SPDLOG_DEBUG("Found Section {}", sectionName->str());
 
         if (sectionName->str() == sectionNameString) {
             // Retrieve the contents of the .rodata section (string literals)
@@ -80,7 +80,7 @@ std::string loadSection(const std::string &sourceFile, const std::string& sectio
         }
     }
 
-    SPDLOG_INFO(".rodata section not found\n");
+    SPDLOG_INFO("{} section not found", sectionNameString);
     return "";
 }
 static int add_helpers(ebpf_llvm_jit::jit::CompilerXDP *ctx) {
@@ -121,7 +121,7 @@ static int build_xdp(bpf_program *prog, const char *name, const std::filesystem:
     }
 
     // write result to file
-    auto result = ctx.do_aot_compile(true, sections);
+    auto result = ctx.do_aot_compile(emit_llvm_ir, sections);
 
     auto out_path = output / (std::string(name) + ".o");
     std::ofstream ofs(out_path, std::ios::binary);
@@ -149,6 +149,10 @@ static int build_ebpf_program(const std::string &ebpf_elf, const std::filesystem
             {
                     ".rodata.str1.1",
                     loadSection(ebpf_elf, ".rodata.str1.1")
+            },
+            {
+                    ".bss.bpf",
+                    loadSection(ebpf_elf, ".bss")
             }
     };
 
