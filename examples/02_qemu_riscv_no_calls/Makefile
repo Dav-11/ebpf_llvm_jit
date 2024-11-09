@@ -61,7 +61,7 @@ $(OUTPUT) $(OUTPUT)/libbpf $(BPFTOOL_OUTPUT):
 $(LIBBPF_OBJ):
 	$(call msg,LIB,$@)
 	$(Q)$(MAKE) -C $(LIBBPF_SRC) BUILD_STATIC_ONLY=1	\
-		OBJDIR=$(dir $@)/libbpf DESTDIR=$(dir $@)		\
+		OBJDIR=$(dir $@)libbpf DESTDIR=$(dir $@)		\
 		INCLUDEDIR= LIBDIR= UAPIDIR=					\
 		install
 
@@ -97,3 +97,7 @@ run: $(OUTPUT)/hello.elf
 clean:
 	$(MAKE) -C $(RNT_BASE) clean
 	rm -f $(OUTPUT)/main.o $(OUTPUT)/start.o $(OUTPUT)/hello.elf $(OUTPUT)/qemu_rv_uart.o $(OUTPUT)/hello_world.rv64.o $(OUTPUT)/main.bpf.o $(OUTPUT)/bpf_printk.o
+
+clean-apps:
+	$(MAKE) -C $(RNT_BASE) clean
+	rm -rf $(OUTPUT)

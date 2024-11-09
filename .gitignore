@@ -2,12 +2,10 @@
 # IDEs
 #######
 
-# clang
+# clion
 .idea
 cmake-build-build
-!compiler/third_party
-!examples/third_party
-third_party
+cmake-build-debug
 
 # others
 .vscode
@@ -17,6 +15,12 @@ third_party
 # MacOS
 .DS_Store
 
+# Build files
+!compiler/third_party
+!examples/third_party
+#third_party
+ebpf_llvm_jit
+
 # C
 *.o
 *.O
@@ -24,3 +28,4 @@ third_party
 *.a
 *.out
 *.ll
+
