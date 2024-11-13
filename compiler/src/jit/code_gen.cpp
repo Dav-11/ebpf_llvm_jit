@@ -3,7 +3,7 @@
 namespace ebpf_llvm_jit::jit {
 
 
-/// Get the source representation of certain ALU operands
+    /// Get the source representation of certain ALU operands
     llvm::Value
     *emitLoadALUSource(const ebpf_inst &inst, llvm::Value **regs, llvm::IRBuilder<> &builder)
     {
