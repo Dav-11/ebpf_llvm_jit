@@ -294,7 +294,7 @@ namespace ebpf_llvm_jit::jit {
                     uint16_t pc, llvm::BasicBlock *exitBlk)
     {
         for (const auto& pair : extFunc) {
-            SPDLOG_INFO("extFunc {} -> {}", pair.first, (pair.second != NULL));
+            SPDLOG_DEBUG("extFunc {} -> {}", pair.first, (pair.second != NULL));
         }
 
         auto funcNameToCall = ext_func_sym(inst.imm);

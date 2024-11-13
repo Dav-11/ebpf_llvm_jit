@@ -19,6 +19,10 @@ namespace ebpf_llvm_jit::helpers{
         [[nodiscard]] const std::string &getName() const;
         [[nodiscard]] void *getFn() const;
 
+        void set_index(unsigned int index);
+        void set_name(const std::string& name);
+        void set_fn(void* fn);
+
     private:
         unsigned int index;
         std::string name;
