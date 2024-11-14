@@ -4,6 +4,8 @@
 
 #include "load_pkt_from_mem.h"
 
+const uint64_t ebpf_pkt_mem_base = 0;
+
 int print_curr_pkt(uint16_t *curr, int count)
 {
 
@@ -70,30 +72,23 @@ void load_packet_arr_from_mem(const void *region_start, const void *region_end, 
 
         printf("\nCOMPUTING SIZE x PACKET # %d\n", k);
 
-        curr->data = (__u32) curr_start;
-        curr->data_end = (__u32) get_next_pkt_end(curr_start, region_end);
+        const void *pkt_start = curr_start;
+        const void *pkt_end = get_next_pkt_end(curr_start, region_end);
+
+        if (((uint64_t) pkt_start < ebpf_pkt_mem_base) || ((uint64_t) pkt_end < ebpf_pkt_mem_base)) {
+
+          printf("ERROR: packet start or end (%16x, %16x) are lower than base (%16x)\n", pkt_start, pkt_end, ebpf_pkt_mem_base);
+        }
+
+        curr->data = (__u32) (pkt_start - ebpf_pkt_mem_base);
+        curr->data_end = (__u32) (pkt_end - ebpf_pkt_mem_base);
         curr->ingress_ifindex = 99;
         curr->rx_queue_index = 0;
         curr->egress_ifindex = 0;
         curr->data_meta = 0;
 
-        curr_start = curr->data_end;
+        curr_start = pkt_end;
     }
-
-    printf("\n\n\n");
-}
-
-void load_packet_from_mem(void *region_start, void *region_end, struct xdp_md *pkt)
-{
-    void *curr_start, *curr_end;
-    curr_start = region_start;
-
-    pkt->data = (__u32) curr_start;
-    pkt->data_end = (__u32) get_next_pkt_end(curr_start, region_end);
-    pkt->ingress_ifindex = 99;
-    pkt->rx_queue_index = 0;
-    pkt->egress_ifindex = 0;
-    pkt->data_meta = 0;
 
     printf("\n\n\n");
 }

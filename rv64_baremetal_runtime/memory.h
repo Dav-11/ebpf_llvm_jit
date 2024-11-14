@@ -22,7 +22,4 @@ extern const char rodata_bpf_end;
 extern const char __stack_bottom;
 extern const char __stack_top;
 
-// BASE for
-const uint64_t ebpf_pkt_mem_base = 0;
-
 #endif //MEMORY_H
