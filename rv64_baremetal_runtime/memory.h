@@ -2,6 +2,7 @@
 #ifndef MEMORY_H
 #define MEMORY_H
 
+#include <stdint.h>
 #define BASE_ADDRESS_QEMU_RV64 0x0000000080000000
 
 /**************************
@@ -20,6 +21,5 @@ extern const char rodata_bpf_end;
 // stack
 extern const char __stack_bottom;
 extern const char __stack_top;
-
 
 #endif //MEMORY_H

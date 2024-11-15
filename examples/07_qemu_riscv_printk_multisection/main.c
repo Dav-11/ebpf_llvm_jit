@@ -6,6 +6,9 @@
 #include "../../rv64_baremetal_runtime/memory.h"
 #include "../../rv64_baremetal_runtime/qemu_rv_uart.h"
 
+
+#define ARR_SIZE 1
+
 // specific for RV64 qemu
 volatile char *uart_base = (volatile char *) UART0_BASE;
 
@@ -17,15 +20,17 @@ int main() {
     printf("End MM Region: 0x%x \n", &my_data_region_end);
 
     // test load pkt from mem
-    struct xdp_md packet;
-    load_packet_from_mem(&my_data_region_start, &my_data_region_end, &packet);
+    struct xdp_md packet[ARR_SIZE];
+    load_packet_arr_from_mem(&my_data_region_start, &my_data_region_end, packet, ARR_SIZE);
 
-    printf("Start Pkt: 0x%x\n", packet.data);
-    printf("End Pkt: 0x%x\n", packet.data_end);
+    for(int p = 0; p < ARR_SIZE; p++) {
 
-    int ret = bpf_main(&packet, sizeof(packet));
+        printf("EXECUTING XDP code on pkt # %d...\n", p);
+        int ret = bpf_main(&packet[p], sizeof(struct xdp_md));
+        printf("XDP result: %d\n\n", ret);
+    }
 
-    printf("XDP result: %d\n", ret);
+    uart_puts("\n");
 
     while (1); // Loop forever to prevent program from ending
 }

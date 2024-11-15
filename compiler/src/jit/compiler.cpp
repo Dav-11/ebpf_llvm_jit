@@ -137,6 +137,21 @@ void CompilerXDP::split_blocks(program_t *p) {
     }
 }
 
+void update_array(bool *contains_ctx, const ebpf_inst *inst)
+{
+    // if dst in contains_ctx -> dst reg is changed -> no more ctx
+    if (contains_ctx[inst->dst_reg]) {
+        contains_ctx[inst->dst_reg] = false;
+        SPDLOG_DEBUG("removed {:d} from contains_ctx", static_cast<int>(inst->dst_reg));
+    }
+
+    // if src in contains_ctx -> add to array (the value is moved or copied)
+    if ((inst->code == EBPF_OP_MOV_REG || inst->code == EBPF_OP_MOV64_REG) && contains_ctx[inst->src_reg])
+    {
+        SPDLOG_DEBUG("added {:d} to contains_ctx", static_cast<int>(inst->dst_reg));
+        contains_ctx[inst->dst_reg] = true;
+    }
+}
 
 /*
     How should we compile bpf instructions into a LLVM module?
@@ -170,17 +185,23 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
      * Inject memory sections into target
      *****************************************************/
 
-    for (passthrough_section s : sections) {
+    for (auto [section_name, section_content] : sections) {
 
-        SPDLOG_INFO("Injecting {} section into module...", s.name);
-        SPDLOG_INFO("{} = {}", s.name, s.str_content);
+        // if section is empty -> skip
+        if (section_content.empty())
+        {
+            continue;
+        }
+
+        SPDLOG_INFO("Injecting {} section into module...", section_name);
+        SPDLOG_INFO("{} = {}", section_name, section_content);
 
         // Convert roData string to an LLVM constant array
-        llvm::Constant *roDataConstant = llvm::ConstantDataArray::getString(*ctx, s.str_content, true);
+        llvm::Constant *roDataConstant = llvm::ConstantDataArray::getString(*ctx, section_content, true);
 
         // Ensure the jitModule is valid and roDataConstant is properly assigned
         if (!roDataConstant) {
-            SPDLOG_ERROR("Failed to create ConstantDataArray for \"{}\" section", s.name);
+            SPDLOG_ERROR("Failed to create ConstantDataArray for \"{}\" section", section_name);
             return llvm::make_error<llvm::StringError>("Failed to create ConstantDataArray", llvm::inconvertibleErrorCode());
         }
 
@@ -191,16 +212,16 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                 true, // isConstant
                 llvm::GlobalValue::PrivateLinkage,
                 roDataConstant,
-                s.name
+                section_name
         );
 
         // Set the section for the global variable to s.name
-        roDataGV->setSection(s.name);
+        roDataGV->setSection(section_name);
 
         // Optionally align the data (e.g., 4-byte alignment)
         roDataGV->setAlignment(llvm::Align(1));
 
-        SPDLOG_INFO("Injected {} [OK]", s.name);
+        SPDLOG_INFO("Injected {} [OK]", section_name);
     }
 
     /*****************************************************
@@ -240,16 +261,6 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
      * Gen setup block (entry point of main fn)
      *****************************************************/
     {
-
-        /*
-         * TODO:
-         * - create 11 regs + ra for calls
-         * - allocate STACK_SIZE + 10 (or real value if possible)
-         * - write args to r1,r2
-         * - allocate call_cnt (must be < MAX_LOCAL_FUNC_DEPTH)
-         * - start main
-         */
-
         // Create a BasicBlock named "setupBlock" as the entry point of the function.
         p.setupBlock = BasicBlock::Create(*ctx, "setupBlock", p.bpf_main);
         p.allBlocks.push_back(p.setupBlock);
@@ -382,10 +393,35 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
     // Iterate over instructions
     BasicBlock *currBB = p.instBlocks[0];
     IRBuilder<> builder(currBB);
+    int current_ctx_reg = 1;
+    bool contains_ctx[p.regs.size()];
+
+    // init to false
+    for (int i = 0; i<p.regs.size(); i++)
+    {
+        if (i == 1) {
+
+            contains_ctx[i] = true;
+        } else {
+
+            contains_ctx[i] = false;
+        }
+    }
+
+    // Declare an external global variable "base" of type int64_t
+    auto *baseGlobal = new GlobalVariable(
+        *jitModule,                      // Module to add the variable to
+        Type::getInt64Ty(currBB->getContext()),  // Type of the variable (int64_t)
+        true,                                         // Is the variable constant?
+        GlobalValue::ExternalLinkage,                 // Linkage type (external, for linking)
+        nullptr,                                      // Initializer (not used here, as it's external)
+        "ebpf_pkt_mem_base"                         // Name of the external variable
+    );
 
     for (uint16_t pc = 0; pc < p.insns.size(); pc++) {
 
         auto inst = p.insns[pc];
+        SPDLOG_INFO("INSN {:d}: [OPCODE: {:x}, SRC_REG: {:d}, DST_REG: {:d}, OFFSET: {:x}, IMM: {:x}]", pc, inst.code, static_cast<int>(inst.src_reg), static_cast<int>(inst.dst_reg), inst.off, inst.imm);
 
         if (p.blockBegin[pc]) {
             if (auto itr = p.instBlocks.find(pc); itr != p.instBlocks.end()) {
@@ -407,6 +443,44 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                     std::to_string(pc),
                     llvm::inconvertibleErrorCode());
         }
+
+        /*****************************************************
+         * Add offset to xdp_md addresses if they are accessed
+         *****************************************************/
+        if (inst.code == EBPF_OP_LDXW && contains_ctx[inst.src_reg])
+        {
+            SPDLOG_INFO("------> MATCHED LDXW ({:x})", inst.code);
+
+            // LDXW [rX + OFFSET]
+            Value *addr = builder.CreateGEP(
+                builder.getInt8Ty(),
+                builder.CreateLoad(builder.getPtrTy(),
+                p.regs[inst.src_reg]),
+                {builder.getInt64(inst.off)}
+            );
+
+            // load val from reg
+            Value *packetPointer= builder.CreateLoad(builder.getInt32Ty(), addr);
+
+            // Load the value of the external base variable
+            Value *baseValue = builder.CreateLoad(builder.getInt64Ty(), baseGlobal);
+
+            // Zero-extend the 32-bit pointer to 64 bits for pointer arithmetic
+            Value *packetPointerExtended= builder.CreateZExt(packetPointer, builder.getInt64Ty(), "extend_ptr_to_64");
+
+            // Add the global base value to the pointer
+            Value *updatedPointer = builder.CreateAdd(packetPointerExtended, baseValue, "add_ptr_with_base");
+
+            // store value into dest register
+            builder.CreateStore(updatedPointer,p.regs[inst.dst_reg]);
+
+            update_array(contains_ctx, &inst);
+
+            // go to next inst
+            continue;
+        }
+
+        update_array(contains_ctx, &inst);
 
         switch (inst.code) {
 
@@ -979,11 +1053,11 @@ Expected<ThreadSafeModule> CompilerXDP::generateModule(
                 // TODO: understand what ARGS is using
                 // TODO: ensure args are in .data / .rodata
 
-                SPDLOG_INFO("===== CALL INST ======");
-                SPDLOG_INFO("code: {}", inst.code);
-                SPDLOG_INFO("imm: {}", inst.imm);
-                SPDLOG_INFO("off: {}", inst.off);
-                SPDLOG_INFO("======================");
+                SPDLOG_DEBUG("===== CALL INST ======");
+                SPDLOG_DEBUG("code: {}", inst.code);
+                SPDLOG_DEBUG("imm: {}", inst.imm);
+                SPDLOG_DEBUG("off: {}", inst.off);
+                SPDLOG_DEBUG("======================");
 
 
                 // Call local function

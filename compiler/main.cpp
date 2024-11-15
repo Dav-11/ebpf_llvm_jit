@@ -38,6 +38,37 @@ uint64_t _bpf_helper_ext_0006(const void *fmt, uint64_t fmt_size, ...)
     va_end(args);
     return 0;
 }
+uint64_t empty_helper()
+{
+    std::cerr << "Empty helper called" << std::endl;
+    return 0;
+}
+static int add_all_helpers(ebpf_llvm_jit::jit::CompilerXDP *ctx)
+{
+    for (int i = 0; i < 10; i++) {
+
+        // add empty helpers so that we can be compatible with other use cases
+        auto info = ebpf_llvm_jit::helpers::helper(
+            i,
+            "empty_helper",
+            (void *)empty_helper
+        );
+
+        if (i == 6)
+        {
+            info.set_name("_bpf_helper_ext_0006");
+            info.set_fn((void *) _bpf_helper_ext_0006);
+        }
+
+        if (const int err = ctx->register_external_function(info.getIndex(), info.getName(), info.getFn())) {
+            return err;
+        }
+
+        SPDLOG_INFO("added helper [id: {}, name: {}]", info.getIndex(), info.getName());
+    }
+
+    return 0;
+}
 
 // Assume this is called to load and access the eBPF object file
 std::string loadSection(const std::string &sourceFile, const std::string& sectionNameString) {
@@ -83,30 +114,12 @@ std::string loadSection(const std::string &sourceFile, const std::string& sectio
     SPDLOG_INFO("{} section not found", sectionNameString);
     return "";
 }
-static int add_helpers(ebpf_llvm_jit::jit::CompilerXDP *ctx) {
-    int err;
-
-    ebpf_llvm_jit::helpers::helper bpf_printk = ebpf_llvm_jit::helpers::helper(
-        6,
-        "_bpf_helper_ext_0006",
-        (void *) _bpf_helper_ext_0006
-    );
-
-    err = ctx->register_external_function(bpf_printk.getIndex(), bpf_printk.getName(), bpf_printk.getFn());
-    if (err) {
-        return err;
-    }
-
-    SPDLOG_INFO("added helper {}", "_bpf_helper_ext_0006 (bpf_printk)");
-
-    return 0;
-}
 static int build_xdp(bpf_program *prog, const char *name, const std::filesystem::path &output, bool emit_llvm_ir, std::vector<ebpf_llvm_jit::jit::passthrough_section> &sections)
 {
     ebpf_llvm_jit::jit::CompilerXDP ctx;
 
-    if (add_helpers(&ctx)) {
-        SPDLOG_ERROR("error while loading helpers");
+    if (const int err = add_all_helpers(&ctx)) {
+        SPDLOG_ERROR("error while loading helpers: {}", err);
         return 1;
     }
 
